@@ -65,7 +65,15 @@ const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
       await loadItems();
 
       setIsAddModalOpen(false);
-      setNewItem({ type: activeTab, brand: 'Professional' });
+      // Reset form completely
+      setNewItem({
+        type: activeTab,
+        brand: 'Professional',
+        name: '',
+        price: undefined,
+        cost: undefined,
+        stock: undefined
+      });
     } catch (error) {
       console.error('Error adding item:', error);
       alert('Error al agregar el producto');

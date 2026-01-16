@@ -50,6 +50,7 @@ const Staff: React.FC<StaffProps> = ({ onBack }) => {
             await addBarber(newBarber);
             await loadBarbers();
             setIsAddModalOpen(false);
+            // Reset form
             setNewBarber({ name: '', birthDate: '', chairNumber: 1 });
         } catch (error) {
             console.error('Error saving barber:', error);

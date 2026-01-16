@@ -34,7 +34,15 @@ export const getCatalogItems = async (): Promise<CatalogItem[]> => {
     return updatedData || (SEED_CATALOG as CatalogItem[]);
   }
 
-  return data || [];
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    name: item.nombre,
+    type: item.categoria,
+    price: item.precio,
+    brand: item.marca,
+    stock: item.stock,
+    cost: item.costo,
+  }));
 };
 
 export const addCatalogItem = async (item: Omit<CatalogItem, 'id'>): Promise<CatalogItem> => {
@@ -46,12 +54,12 @@ export const addCatalogItem = async (item: Omit<CatalogItem, 'id'>): Promise<Cat
     .from('catalog_items')
     .insert([{
       user_id: user.id,
-      name: item.name,
-      type: item.type,
-      price: item.price,
-      brand: item.brand,
+      nombre: item.name,
+      categoria: item.type,
+      precio: item.price,
+      marca: item.brand,
       stock: item.stock,
-      cost: item.cost,
+      costo: item.cost,
     }])
     .select()
     .single();
@@ -61,7 +69,15 @@ export const addCatalogItem = async (item: Omit<CatalogItem, 'id'>): Promise<Cat
     throw error;
   }
 
-  return data;
+  return {
+    id: data.id,
+    name: data.nombre,
+    type: data.categoria,
+    price: data.precio,
+    brand: data.marca,
+    stock: data.stock,
+    cost: data.costo,
+  };
 };
 
 export const updateCatalogItem = async (id: string, updates: Partial<CatalogItem>): Promise<void> => {
@@ -274,7 +290,7 @@ export const getBarbers = async (): Promise<BarberSession[]> => {
   if (error) throw error;
   return (data || []).map((b: any) => ({
     id: b.id,
-    name: b.name,
+    name: b.nombre,
     birthDate: b.fecha_nacimiento,
     chairNumber: b.numero_silla
   }));
@@ -288,7 +304,7 @@ export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<Barb
     .from('barbers')
     .insert([{
       user_id: user.id,
-      name: barber.name,
+      nombre: barber.name,
       fecha_nacimiento: barber.birthDate,
       numero_silla: barber.chairNumber
     }])
@@ -298,7 +314,7 @@ export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<Barb
   if (error) throw error;
   return {
     id: data.id,
-    name: data.name,
+    name: data.nombre,
     birthDate: data.fecha_nacimiento,
     chairNumber: data.numero_silla
   };
