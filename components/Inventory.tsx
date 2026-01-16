@@ -56,7 +56,7 @@ const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
         name: newItem.name,
         type: activeTab,
         price: Number(newItem.price),
-        cost: activeTab === ItemType.PRODUCT ? Number(newItem.cost || 0) : 0,
+        // removed cost
         stock: activeTab === ItemType.PRODUCT ? Number(newItem.stock || 0) : 0,
         brand: newItem.brand || 'Professional'
       });
@@ -71,7 +71,6 @@ const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
         brand: 'Professional',
         name: '',
         price: undefined,
-        cost: undefined,
         stock: undefined
       });
     } catch (error) {
@@ -148,7 +147,6 @@ const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
             <tr>
               <th className="p-4 border-b border-zinc-800">Producto</th>
               <th className="p-4 border-b border-zinc-800">Marca</th>
-              <th className="p-4 border-b border-zinc-800 text-right">Costo</th>
               <th className="p-4 border-b border-zinc-800 text-right">Precio Venta</th>
               <th className="p-4 border-b border-zinc-800 text-center">Stock</th>
               <th className="p-4 border-b border-zinc-800 text-center">Estado</th>
@@ -159,9 +157,6 @@ const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
               <tr key={item.id} className="hover:bg-zinc-800/50 transition-colors">
                 <td className="p-4 font-medium text-zinc-100">{item.name}</td>
                 <td className="p-4 text-zinc-400">{item.brand || '-'}</td>
-                <td className="p-4 text-right text-zinc-500">
-                  {item.type === ItemType.PRODUCT ? `$${item.cost}` : '-'}
-                </td>
                 <td className="p-4 text-right text-amber-500 font-bold">${item.price}</td>
                 <td className="p-4 text-center font-bold">
                   {item.type === ItemType.PRODUCT ? item.stock : '-'}
@@ -202,29 +197,22 @@ const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
             />
           )}
           <div className="grid grid-cols-2 gap-4">
-            {activeTab === ItemType.PRODUCT && (
-              <Input
-                label="Precio Compra (Costo)"
-                type="number"
-                value={newItem.cost || ''}
-                onChange={e => setNewItem({ ...newItem, cost: Number(e.target.value) })}
-              />
-            )}
             <Input
               label="Precio Venta"
               type="number"
               value={newItem.price || ''}
               onChange={e => setNewItem({ ...newItem, price: Number(e.target.value) })}
             />
+            {activeTab === ItemType.PRODUCT && (
+              <Input
+                label="Stock Inicial"
+                type="number"
+                value={newItem.stock || ''}
+                onChange={e => setNewItem({ ...newItem, stock: Number(e.target.value) })}
+              />
+            )}
           </div>
-          {activeTab === ItemType.PRODUCT && (
-            <Input
-              label="Stock Inicial"
-              type="number"
-              value={newItem.stock || ''}
-              onChange={e => setNewItem({ ...newItem, stock: Number(e.target.value) })}
-            />
-          )}
+
           <div className="pt-4">
             <Button onClick={handleSave} fullWidth disabled={saving}>
               {saving ? 'Guardando...' : `Guardar ${activeTab === ItemType.PRODUCT ? 'Producto' : 'Servicio'}`}
