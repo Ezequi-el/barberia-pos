@@ -6,9 +6,13 @@ import { SEED_CATALOG } from '../constants';
  * Catalog Items Operations
  */
 export const getCatalogItems = async (): Promise<CatalogItem[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id || 'demo-user-id';
+
   const { data, error } = await supabase
     .from('catalog_items')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -25,6 +29,7 @@ export const getCatalogItems = async (): Promise<CatalogItem[]> => {
     const { data: updatedData } = await supabase
       .from('catalog_items')
       .select('*')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     return updatedData || (SEED_CATALOG as CatalogItem[]);
   }
@@ -96,12 +101,16 @@ export const deductStock = async (itemId: string, quantity: number): Promise<voi
  * Transactions Operations
  */
 export const getTransactions = async (): Promise<Transaction[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id || 'demo-user-id';
+
   const { data, error } = await supabase
     .from('transactions')
     .select(`
       *,
       transaction_items (*)
     `)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -253,9 +262,13 @@ export const seedCatalog = async (seedData: Omit<CatalogItem, 'id'>[]): Promise<
  * Staff Operations
  */
 export const getBarbers = async (): Promise<BarberSession[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id || 'demo-user-id';
+
   const { data, error } = await supabase
     .from('barbers')
     .select('*')
+    .eq('user_id', userId)
     .order('name', { ascending: true });
 
   if (error) throw error;
@@ -268,9 +281,13 @@ export const getBarbers = async (): Promise<BarberSession[]> => {
 };
 
 export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<BarberSession> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
   const { data, error } = await supabase
     .from('barbers')
     .insert([{
+      user_id: user.id,
       name: barber.name,
       birth_date: barber.birthDate,
       chair_number: barber.chairNumber
@@ -291,9 +308,13 @@ export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<Barb
  * Appointments Operations
  */
 export const getAppointments = async (): Promise<Appointment[]> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id || 'demo-user-id';
+
   const { data, error } = await supabase
     .from('appointments')
     .select('*')
+    .eq('user_id', userId)
     .order('date', { ascending: true });
 
   if (error) throw error;
@@ -310,9 +331,13 @@ export const getAppointments = async (): Promise<Appointment[]> => {
 };
 
 export const createAppointment = async (appointment: Omit<Appointment, 'id'>): Promise<Appointment> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
   const { data, error } = await supabase
     .from('appointments')
     .insert([{
+      user_id: user.id,
       customer_name: appointment.customerName,
       customer_phone: appointment.customerPhone,
       date: appointment.date,
