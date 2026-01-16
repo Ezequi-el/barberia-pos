@@ -275,8 +275,8 @@ export const getBarbers = async (): Promise<BarberSession[]> => {
   return (data || []).map((b: any) => ({
     id: b.id,
     name: b.name,
-    birthDate: b.birth_date,
-    chairNumber: b.chair_number
+    birthDate: b.fecha_nacimiento,
+    chairNumber: b.numero_silla
   }));
 };
 
@@ -289,8 +289,8 @@ export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<Barb
     .insert([{
       user_id: user.id,
       name: barber.name,
-      birth_date: barber.birthDate,
-      chair_number: barber.chairNumber
+      fecha_nacimiento: barber.birthDate,
+      numero_silla: barber.chairNumber
     }])
     .select()
     .single();
@@ -299,8 +299,8 @@ export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<Barb
   return {
     id: data.id,
     name: data.name,
-    birthDate: data.birth_date,
-    chairNumber: data.chair_number
+    birthDate: data.fecha_nacimiento,
+    chairNumber: data.numero_silla
   };
 };
 
