@@ -73,16 +73,31 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
     const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
     const totalTransactions = transactions.length;
 
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    // Use local YYYY-MM-DD
+    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
     const todaySales = transactions
-      .filter(t => t.date.startsWith(today))
+      .filter(t => {
+        const d = new Date(t.date); // Parses UTC date to local Date object
+        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return localDateStr === todayLocalStr;
+      })
       .reduce((sum, t) => sum + t.total, 0);
 
-    // Sales by Barber
-    const salesByBarber = transactions.reduce((acc, t) => {
+    // Sales by Barber - Sorted alphabetically to maintain consistent charting colors
+    const salesByBarberRaw = transactions.reduce((acc, t) => {
       acc[t.barber] = (acc[t.barber] || 0) + t.total;
       return acc;
     }, {} as Record<string, number>);
+
+    const salesByBarber = Object.keys(salesByBarberRaw).sort().reduce(
+      (obj, key) => { 
+        obj[key] = salesByBarberRaw[key]; 
+        return obj;
+      }, 
+      {} as Record<string, number>
+    );
 
     const chartData = Object.keys(salesByBarber).map(key => ({
       name: key,
@@ -331,11 +346,19 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={(() => {
                   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+                  const currentYear = new Date().getFullYear();
+                  const currentMonth = new Date().getMonth();
+                  
                   return Array.from({ length: daysInMonth }, (_, i) => {
                     const day = i + 1;
-                    const dateStr = new Date(new Date().getFullYear(), new Date().getMonth(), day).toISOString().split('T')[0];
+                    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    
                     const total = transactions
-                      .filter(t => t.date.startsWith(dateStr))
+                      .filter(t => {
+                         const d = new Date(t.date);
+                         const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                         return localDateStr === dateStr;
+                      })
                       .reduce((sum, t) => sum + t.total, 0);
                     return { day, total };
                   });

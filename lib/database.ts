@@ -35,6 +35,49 @@ const generateId = (): string => {
 };
 
 // ============================================================================
+// SUPABASE MULTI-TENANT HELPER
+// ============================================================================
+
+const getBusinessId = async (): Promise<string> => {
+  if (isDemoMode) return 'demo-business-id';
+  if (!supabase) throw new Error('Supabase not initialized');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  // Check if profile exists
+  let { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('business_id')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError && profileError.code !== 'PGRST116') { 
+    console.error('Error fetching profile:', profileError);
+    alert('DB Error fetching profile: ' + profileError.message);
+    throw profileError;
+  }
+
+  // If no profile, create one with a fallback UUID generation
+  if (!profile) {
+    const newBusinessId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateId();
+    const { data: newProfile, error: insertError } = await supabase
+      .from('profiles')
+      .insert([{ id: user.id, business_id: newBusinessId }])
+      .select('business_id')
+      .single();
+      
+    if (insertError) {
+      console.error('Error creating profile:', insertError);
+      alert('DB Error creating profile: ' + insertError.message);
+      throw insertError;
+    }
+    profile = newProfile;
+  }
+
+  return profile?.business_id;
+};
+
+// ============================================================================
 // CATALOG ITEMS OPERATIONS (DUAL MODE)
 // ============================================================================
 
@@ -46,13 +89,17 @@ export const getCatalogItems = async (): Promise<CatalogItem[]> => {
   } else {
     // SUPABASE MODE: Original logic
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+    
     const { data, error } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .select('*')
+      .eq('business_id', businessId)
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching catalog items:', error);
+      alert('DB Error fetching catalog items: ' + error.message);
       throw error;
     }
 
@@ -75,13 +122,15 @@ export const addCatalogItem = async (item: Omit<CatalogItem, 'id'>): Promise<Cat
     // SUPABASE MODE: Original logic
     if (!supabase) throw new Error('Supabase not initialized');
     const { data: { user } } = await supabase.auth.getUser();
-
     if (!user) throw new Error('User not authenticated');
+    
+    const businessId = await getBusinessId();
 
     const { data, error } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .insert([{
         user_id: user.id,
+        business_id: businessId,
         name: item.name,
         type: item.type,
         price: item.price,
@@ -94,6 +143,7 @@ export const addCatalogItem = async (item: Omit<CatalogItem, 'id'>): Promise<Cat
 
     if (error) {
       console.error('Error adding catalog item:', error);
+      alert('DB Error adding catalog item: ' + error.message);
       throw error;
     }
 
@@ -112,10 +162,13 @@ export const updateCatalogItem = async (id: string, updates: Partial<CatalogItem
   } else {
     // SUPABASE MODE: Original logic
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+
     const { error } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('business_id', businessId);
 
     if (error) {
       console.error('Error updating catalog item:', error);
@@ -138,11 +191,14 @@ export const deductStock = async (itemId: string, quantity: number): Promise<voi
   } else {
     // SUPABASE MODE: Original logic
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+
     // Get current stock
     const { data: item, error: fetchError } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .select('stock')
       .eq('id', itemId)
+      .eq('business_id', businessId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -151,9 +207,10 @@ export const deductStock = async (itemId: string, quantity: number): Promise<voi
     // Update stock
     const newStock = item.stock - quantity;
     const { error: updateError } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .update({ stock: newStock })
-      .eq('id', itemId);
+      .eq('id', itemId)
+      .eq('business_id', businessId);
 
     if (updateError) throw updateError;
   }
@@ -171,12 +228,15 @@ export const getTransactions = async (): Promise<Transaction[]> => {
   } else {
     // SUPABASE MODE: Original logic
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+
     const { data, error } = await supabase
-      .from('transactions')
+      .from('pedidos')
       .select(`
         *,
-        transaction_items (*)
+        variantes (*)
       `)
+      .eq('business_id', businessId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -192,11 +252,11 @@ export const getTransactions = async (): Promise<Transaction[]> => {
       total: parseFloat(t.total),
       paymentMethod: t.payment_method,
       reference: t.reference,
-      items: (t.transaction_items || []).map((ti: any) => ({
-        id: ti.catalog_item_id || ti.id,
-        name: ti.item_name,
-        type: ti.item_type,
-        price: parseFloat(ti.item_price),
+      items: (t.variantes || []).map((ti: any) => ({
+        id: ti.producto_id || ti.id,
+        name: ti.name || ti.item_name,
+        type: ti.type || ti.item_type,
+        price: parseFloat(ti.price || ti.item_price),
         quantity: ti.quantity,
       })),
     }));
@@ -235,12 +295,15 @@ export const createTransaction = async (
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) throw new Error('User not authenticated');
+    
+    const businessId = await getBusinessId();
 
     // Start a transaction by inserting the main transaction record
     const { data: transactionData, error: transactionError } = await supabase
-      .from('transactions')
+      .from('pedidos')
       .insert([{
         user_id: user.id,
+        business_id: businessId,
         barber: transaction.barber,
         total: transaction.total,
         payment_method: transaction.paymentMethod,
@@ -256,17 +319,18 @@ export const createTransaction = async (
 
     // Insert transaction items
     const transactionItems = transaction.items.map((item: CartItem) => ({
-      transaction_id: transactionData.id,
-      catalog_item_id: item.id,
-      item_name: item.name,
-      item_type: item.type,
-      item_price: item.price,
+      pedido_id: transactionData.id,
+      producto_id: item.id,
+      name: item.name,
+      type: item.type,
+      price: item.price,
       quantity: item.quantity,
       subtotal: item.price * item.quantity,
+      business_id: businessId, 
     }));
 
     const { error: itemsError } = await supabase
-      .from('transaction_items')
+      .from('variantes')
       .insert(transactionItems);
 
     if (itemsError) {
@@ -304,11 +368,9 @@ export const seedCatalog = async (seedData: Omit<CatalogItem, 'id'>[]): Promise<
     const alreadySeeded = getFromStorage<boolean>(STORAGE_KEYS.SEEDED);
 
     if (alreadySeeded) {
-      // Already seeded, skip
       return;
     }
 
-    // Seed the catalog with IDs
     const catalog: CatalogItem[] = seedData.map(item => ({
       id: generateId(),
       ...item,
@@ -323,22 +385,24 @@ export const seedCatalog = async (seedData: Omit<CatalogItem, 'id'>[]): Promise<
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) throw new Error('User not authenticated');
+    
+    const businessId = await getBusinessId();
 
     // Check if user already has catalog items
     const { data: existing } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('business_id', businessId)
       .limit(1);
 
     if (existing && existing.length > 0) {
-      // User already has catalog items, don't seed
       return;
     }
 
     // Insert seed data
     const catalogItems = seedData.map(item => ({
       user_id: user.id,
+      business_id: businessId,
       name: item.name,
       type: item.type,
       price: item.price,
@@ -348,7 +412,7 @@ export const seedCatalog = async (seedData: Omit<CatalogItem, 'id'>[]): Promise<
     }));
 
     const { error } = await supabase
-      .from('catalog_items')
+      .from('productos')
       .insert(catalogItems);
 
     if (error) {
@@ -368,13 +432,27 @@ export const getAppointments = async (): Promise<Appointment[]> => {
     return stored ? JSON.parse(stored) : [];
   } else {
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+
     const { data, error } = await supabase
-      .from('appointments')
+      .from('citas')
       .select('*')
+      .eq('business_id', businessId)
       .order('date', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    
+    // Fix camelCase vs lowercase DB mapping for clientName
+    return (data || []).map((a: any) => ({
+      id: a.id,
+      clientName: a.clientname || a.clientName,
+      date: a.date,
+      time: a.time,
+      barber: a.barber,
+      service: a.service,
+      status: a.status,
+      notes: a.notes
+    }));
   }
 };
 
@@ -392,10 +470,22 @@ export const createAppointment = async (appointment: Omit<Appointment, 'id'>): P
     if (!supabase) throw new Error('Supabase not initialized');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
+    
+    const businessId = await getBusinessId();
 
     const { data, error } = await supabase
-      .from('appointments')
-      .insert([{ ...appointment, user_id: user.id }])
+      .from('citas')
+      .insert([{ 
+        clientname: appointment.clientName,
+        date: appointment.date,
+        time: appointment.time,
+        barber: appointment.barber,
+        service: appointment.service,
+        status: appointment.status,
+        notes: appointment.notes,
+        user_id: user.id, 
+        business_id: businessId 
+      }])
       .select()
       .single();
 
@@ -416,10 +506,20 @@ export const updateAppointment = async (id: string, updates: Partial<Appointment
     return updatedAppointment;
   } else {
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+
+    // Prepare updates with correct snake_case/lowercase equivalents
+    const dbUpdates: any = { ...updates };
+    if (updates.clientName) {
+      dbUpdates.clientname = updates.clientName;
+      delete dbUpdates.clientName;
+    }
+
     const { data, error } = await supabase
-      .from('appointments')
-      .update(updates)
+      .from('citas')
+      .update(dbUpdates)
       .eq('id', id)
+      .eq('business_id', businessId)
       .select()
       .single();
 
@@ -435,10 +535,13 @@ export const deleteAppointment = async (id: string): Promise<void> => {
     localStorage.setItem('neron_appointments', JSON.stringify(filtered));
   } else {
     if (!supabase) throw new Error('Supabase not initialized');
+    const businessId = await getBusinessId();
+
     const { error } = await supabase
-      .from('appointments')
+      .from('citas')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('business_id', businessId);
 
     if (error) throw error;
   }
