@@ -13,6 +13,13 @@ export interface CatalogItem {
   cost?: number; // For profit calculation (optional in frontend view but good for data)
 }
 
+export interface Profile {
+  id: string;
+  business_id: string;
+  role: 'owner' | 'barber';
+  full_name?: string;
+}
+
 export interface CartItem extends CatalogItem {
   quantity: number;
 }
@@ -31,7 +38,8 @@ export enum Barber {
 export interface Transaction {
   id: string;
   date: string; // ISO string
-  barber: Barber;
+  userId?: string; // Foreign key to profiles
+  barber: Barber | string;
   items: CartItem[];
   total: number;
   paymentMethod: PaymentMethod;

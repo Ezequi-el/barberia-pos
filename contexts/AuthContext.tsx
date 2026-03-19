@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase, isDemoMode } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { Profile } from '../types';
+import { Globals } from '../lib/globals';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
-  isDemoMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,129 +24,128 @@ export const useAuth = () => {
   return context;
 };
 
-// Demo user for localStorage mode
-const DEMO_USER: User = {
-  id: 'demo-user-001',
-  email: 'demo@neron.local',
-  aud: 'authenticated',
-  role: 'authenticated',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-  app_metadata: {},
-  user_metadata: { full_name: 'Usuario Demo' },
-};
-
-const DEMO_SESSION_KEY = 'neron_demo_session';
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (isDemoMode) {
-      // DEMO MODE: Check sessionStorage for existing session
-      const demoSession = sessionStorage.getItem(DEMO_SESSION_KEY);
-      if (demoSession) {
-        setUser(DEMO_USER);
-        setSession({ user: DEMO_USER } as Session);
+  // Fetch or create profile logic
+  const fetchProfile = async (currentUser: User) => {
+    try {
+      if (!supabase) return;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile in AuthContext:', error);
+      } else if (data) {
+        setProfile(data as Profile);
+        Globals.BUSINESS_ID = data.business_id;
+      } else {
+        // Fallback: If no profile exists yet, create one temporarily so app doesn't crash
+        // (The database.ts getBusinessId will do the official creation, but just in case)
+        const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const newBusinessId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateId();
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert([{ id: currentUser.id, business_id: newBusinessId, role: 'owner' }])
+          .select()
+          .single();
+          
+        if (!insertError && newProfile) {
+          setProfile(newProfile as Profile);
+          Globals.BUSINESS_ID = newProfile.business_id;
+        }
       }
-      setLoading(false);
-    } else {
-      // SUPABASE MODE: Original logic
-      if (!supabase) {
-        setLoading(false);
-        return;
-      }
-
-      // Get initial session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      });
-
-      // Listen for auth changes
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      });
-
-      return () => subscription.unsubscribe();
+    } catch (e) {
+      console.error(e);
     }
+  };
+
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    // Set loading to false immediately after supabase is confirmed to be available
+    // and before listening for auth changes, to prevent synchronous web lock.
+    setLoading(false);
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      Globals.USER_ID = session?.user?.id ?? null;
+      if (!session?.user) {
+        setProfile(null);
+        Globals.BUSINESS_ID = null;
+      }
+      setLoading(false); // Unblock the UI instantly after auth state is set!
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    if (isDemoMode) {
-      // DEMO MODE: Accept any credentials and create demo session
-      console.log('🎭 Demo Mode: Sign in accepted with email:', email);
-      setUser(DEMO_USER);
-      setSession({ user: DEMO_USER } as Session);
-      sessionStorage.setItem(DEMO_SESSION_KEY, 'true');
-      return { error: null };
-    } else {
-      // SUPABASE MODE: Original logic
-      if (!supabase) return { error: { message: 'Supabase not initialized' } as AuthError };
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      return { error };
+  // Isolate Database Queries to AVOID synchronous queue deadlocks!
+  useEffect(() => {
+    if (user) {
+      fetchProfile(user); // No await needed, runs in background without blocking App Load!
     }
+  }, [user]);
+
+  const signIn = async (email: string, password: string) => {
+    if (!supabase) return { error: { message: 'Supabase not initialized' } as AuthError };
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error };
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    if (isDemoMode) {
-      // DEMO MODE: Accept registration and create demo session
-      console.log('🎭 Demo Mode: Sign up accepted with email:', email, 'name:', fullName);
-      setUser(DEMO_USER);
-      setSession({ user: DEMO_USER } as Session);
-      sessionStorage.setItem(DEMO_SESSION_KEY, 'true');
-      return { error: null };
-    } else {
-      // SUPABASE MODE: Original logic
-      if (!supabase) return { error: { message: 'Supabase not initialized' } as AuthError };
+    if (!supabase) return { error: { message: 'Supabase not initialized' } as AuthError };
 
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
         },
-      });
-      return { error };
-    }
+      },
+    });
+    return { error };
   };
 
   const signOut = async () => {
-    if (isDemoMode) {
-      // DEMO MODE: Clear demo session
-      console.log('🎭 Demo Mode: Sign out');
-      setUser(null);
-      setSession(null);
-      sessionStorage.removeItem(DEMO_SESSION_KEY);
-    } else {
-      // SUPABASE MODE: Original logic
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
+    if (supabase) {
+      await supabase.auth.signOut();
+      setProfile(null);
+      Globals.BUSINESS_ID = null;
+      Globals.USER_ID = null;
     }
   };
 
   const value = {
     user,
     session,
+    profile,
     loading,
     signIn,
     signUp,
     signOut,
-    isDemoMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

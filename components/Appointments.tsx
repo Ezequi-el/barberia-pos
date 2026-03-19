@@ -4,11 +4,7 @@ import Button from './Button';
 import { Appointment } from '../types';
 import { getAppointments, createAppointment, deleteAppointment } from '../lib/database';
 
-interface AppointmentsProps {
-    onBack: () => void;
-}
-
-const Appointments: React.FC<AppointmentsProps> = ({ onBack }) => {
+const Appointments: React.FC = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
@@ -95,11 +91,8 @@ const Appointments: React.FC<AppointmentsProps> = ({ onBack }) => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white">
-                        <ChevronLeft />
-                    </button>
                     <div>
-                        <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wide">Agenda</h2>
+                        <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wider">Agenda</h2>
                         <p className="text-zinc-500">Gestión de citas y horarios</p>
                     </div>
                 </div>

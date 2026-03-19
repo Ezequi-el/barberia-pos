@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Customer } from '../types';
-import { Users, ChevronLeft, Search, Plus, Edit2, Phone, Mail, Calendar } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Phone, Mail, Calendar } from 'lucide-react';
 import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
-
-interface CustomersProps {
-    onBack: () => void;
-}
 
 // LocalStorage key
 const CUSTOMERS_KEY = 'neron_customers';
@@ -34,7 +30,7 @@ const generateId = (): string => {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
-const Customers: React.FC<CustomersProps> = ({ onBack }) => {
+const Customers: React.FC = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [search, setSearch] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -116,11 +112,8 @@ const Customers: React.FC<CustomersProps> = ({ onBack }) => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white">
-                        <ChevronLeft />
-                    </button>
                     <div>
-                        <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wide">Clientes</h2>
+                        <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wider">Clientes</h2>
                         <p className="text-zinc-500">Gestión de clientes y visitas</p>
                     </div>
                 </div>

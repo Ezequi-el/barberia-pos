@@ -1,21 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction } from '../types';
-import { ChevronLeft, Download, FileText, TrendingUp, DollarSign, Calendar, AlertCircle } from 'lucide-react';
+import { Download, FileText, TrendingUp, DollarSign, Calendar, AlertCircle } from 'lucide-react';
 import Button from './Button';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { getTransactions } from '../lib/database';
+import { useAuth } from '../contexts/AuthContext';
 
-interface ReportsProps {
-  onBack: () => void;
-}
-
-const Reports: React.FC<ReportsProps> = ({ onBack }) => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+const Reports: React.FC = () => {
+  const { user, profile } = useAuth();
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Date Range State
+  const [dateRange, setDateRange] = useState({
+    start: '',
+    end: ''
+  });
 
   // Load transactions on mount
   useEffect(() => {
@@ -23,7 +27,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
       try {
         setLoading(true);
         const data = await getTransactions();
-        setTransactions(data);
+        setAllTransactions(data);
       } catch (err: any) {
         console.error("Error cargando transacciones:", err);
         setError("No se pudieron cargar las transacciones.");
@@ -34,15 +38,41 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
     loadData();
   }, []);
 
-  // Error Boundary effect for rendering errors
+  // Set default dates if empty
   useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      console.error("Error capturado en Reports:", event.error);
-      setError(event.error?.message || "Error desconocido de renderizado");
-    };
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
+    if (!dateRange.start && !dateRange.end) {
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      const format = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      setDateRange({
+        start: format(firstDayOfMonth),
+        end: format(today)
+      });
+    }
+  }, [dateRange]);
+
+  // Apply filters
+  const transactions = useMemo(() => {
+    let filtered = allTransactions;
+
+    // 1. Role-based isolation — barbers only see their own sales (matched by full_name)
+    if (profile?.role === 'barber' && profile?.full_name) {
+      filtered = filtered.filter(t => t.barber === profile.full_name);
+    }
+
+    // 2. Date Range filtering
+    if (dateRange.start && dateRange.end) {
+      filtered = filtered.filter(t => {
+        const d = new Date(t.date);
+        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return localDateStr >= dateRange.start && localDateStr <= dateRange.end;
+      });
+    }
+
+    return filtered;
+  }, [allTransactions, profile, user, dateRange]);
 
   if (loading) {
     return (
@@ -60,336 +90,323 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
       <div className="h-screen bg-zinc-950 flex flex-col items-center justify-center text-center p-6">
         <AlertCircle className="text-red-500 w-16 h-16 mb-4" />
         <h2 className="text-2xl font-bold text-white mb-2">Algo salió mal en Reportes</h2>
-        <p className="text-zinc-400 mb-6 max-w-md bg-zinc-900 p-4 rounded font-mono text-sm border border-red-900/50">
+        <p className="text-zinc-400 max-w-md bg-zinc-900 p-4 rounded font-mono text-sm border border-red-900/50">
           {error}
         </p>
-        <Button onClick={onBack}>Volver al Dashboard</Button>
       </div>
     );
   }
 
-  try {
-    // Calculate KPIs
-    const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
-    const totalTransactions = transactions.length;
+  // Calculate KPIs
+  const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
+  const totalTransactions = transactions.length;
 
-    const now = new Date();
-    // Use local YYYY-MM-DD
-    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    
-    const todaySales = transactions
-      .filter(t => {
-        const d = new Date(t.date); // Parses UTC date to local Date object
-        const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        return localDateStr === todayLocalStr;
-      })
-      .reduce((sum, t) => sum + t.total, 0);
+  const now = new Date();
+  const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  const todaySales = allTransactions // always computed against all accessible transactions for today
+    .filter(t => {
+      // Keep isolation check
+      if (profile?.role === 'barber' && t.userId !== user?.id) return false;
+      const d = new Date(t.date); 
+      const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return localDateStr === todayLocalStr;
+    })
+    .reduce((sum, t) => sum + t.total, 0);
 
-    // Sales by Barber - Sorted alphabetically to maintain consistent charting colors
-    const salesByBarberRaw = transactions.reduce((acc, t) => {
-      acc[t.barber] = (acc[t.barber] || 0) + t.total;
-      return acc;
-    }, {} as Record<string, number>);
+  // Sales by Barber
+  const salesByBarberRaw = transactions.reduce((acc, t) => {
+    const b = t.barber.toString();
+    acc[b] = (acc[b] || 0) + t.total;
+    return acc;
+  }, {} as Record<string, number>);
 
-    const salesByBarber = Object.keys(salesByBarberRaw).sort().reduce(
-      (obj, key) => { 
-        obj[key] = salesByBarberRaw[key]; 
-        return obj;
-      }, 
-      {} as Record<string, number>
-    );
+  const salesByBarber = Object.keys(salesByBarberRaw).sort().reduce((obj, key) => { 
+    obj[key] = salesByBarberRaw[key]; 
+    return obj;
+  }, {} as Record<string, number>);
 
-    const chartData = Object.keys(salesByBarber).map(key => ({
-      name: key,
-      value: salesByBarber[key]
-    }));
+  const chartData = Object.keys(salesByBarber).map(key => ({
+    name: key,
+    value: salesByBarber[key]
+  }));
 
-    const downloadBlob = (blob: Blob, fileName: string) => {
-      // Crear URL del blob
-      const url = window.URL.createObjectURL(blob);
+  const COLORS = ['#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6', '#ef4444'];
 
-      // Crear elemento link invisible
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      // No ocultar el link para evitar bloqueos de seguridad en algunos navegadores
-      document.body.appendChild(link);
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+  };
 
-      // Simular click
-      link.click();
+  const exportToPDF = () => {
+    try {
+      const doc = new jsPDF();
 
-      // Limpiar después de un retraso mayor (5 segundos) para asegurar compatibilidad
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 1000);
-    };
+      doc.setFontSize(24);
+      doc.setFont('helvetica', 'bold');
+      doc.text('NERON BARBERSHOP', 105, 20, { align: 'center' });
 
-    const exportToPDF = () => {
-      try {
-        const doc = new jsPDF();
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Reporte de Ventas', 105, 28, { align: 'center' });
+      doc.text(`Período: ${dateRange.start} al ${dateRange.end}`, 105, 34, { align: 'center' });
 
-        // Header
-        doc.setFontSize(24);
-        doc.setFont('helvetica', 'bold');
-        doc.text('NERON BARBERSHOP', 105, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RESUMEN GENERAL', 14, 45);
 
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Reporte de Ventas', 105, 28, { align: 'center' });
-        doc.text(new Date().toLocaleDateString('es-MX', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }), 105, 34, { align: 'center' });
+      const kpiData = [
+        ['Total Ventas', `$${totalSales.toLocaleString()}`],
+        ['Transacciones', totalTransactions.toString()]
+      ];
 
-        // KPIs Section
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('RESUMEN GENERAL', 14, 45);
+      autoTable(doc, {
+        startY: 50,
+        body: kpiData,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 5 },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: [240, 240, 240] },
+          1: { halign: 'right' }
+        }
+      });
 
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Ventas Totales: $${totalSales.toLocaleString()}`, 14, 52);
-        doc.text(`Total Transacciones: ${totalTransactions}`, 14, 58);
-        doc.text(`Ventas Hoy: $${todaySales.toLocaleString()}`, 14, 64);
+      let listY = (doc as any).lastAutoTable.finalY + 15;
 
-        // Sales by Barber
-        doc.setFont('helvetica', 'bold');
-        doc.text('VENTAS POR BARBERO', 14, 75);
-        doc.setFont('helvetica', 'normal');
-        let yPos = 82;
-        Object.entries(salesByBarber).forEach(([barber, total]) => {
-          doc.text(`${barber}: $${total.toLocaleString()}`, 14, yPos);
-          yPos += 6;
-        });
-
-        // Transactions Table
+      if (profile?.role === 'owner') {
+        doc.text('VENTAS POR BARBERO', 14, listY);
+        const barberData = Object.keys(salesByBarber).map(b => [b, `$${salesByBarber[b].toLocaleString()}`]);
         autoTable(doc, {
-          startY: yPos + 5,
-          head: [['Fecha', 'Barbero', 'Items', 'Método', 'Total']],
-          body: transactions.map(t => [
-            new Date(t.date).toLocaleString('es-MX', {
-              day: '2-digit',
-              month: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit'
-            }),
-            t.barber,
-            t.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
-            t.paymentMethod,
-            `$${t.total}`,
-          ]),
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [245, 158, 11], textColor: 0 },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
+          startY: listY + 5,
+          head: [['Barbero', 'Total']],
+          body: barberData,
+          theme: 'striped',
+          headStyles: { fillColor: [20, 20, 20], textColor: 255 },
+          styles: { fontSize: 10 },
+          columnStyles: { 1: { halign: 'right' } }
         });
-
-        // Open PDF in new tab
-        const pdfOutput = doc.output('bloburl');
-        window.open(pdfOutput, '_blank');
-      } catch (error: any) {
-        console.error('Error generando PDF:', error);
-        alert(`Error al generar PDF: ${error.message}`);
+        listY = (doc as any).lastAutoTable.finalY + 15;
       }
-    };
 
-    const exportToExcel = () => {
-      try {
-        // Create workbook
-        const wb = XLSX.utils.book_new();
+      doc.text('DESGLOSE DE TRANSACCIONES', 14, listY);
+      
+      const txData = transactions.map(t => [
+        new Date(t.date).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }),
+        t.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
+        profile?.role === 'owner' ? t.barber : t.paymentMethod,
+        `$${t.total.toLocaleString()}`
+      ]);
 
-        // Sheet 1: KPIs Summary
-        const summaryData = [
-          ['NERON BARBERSHOP - REPORTE DE VENTAS'],
-          ['Fecha:', new Date().toLocaleDateString('es-MX')],
-          [],
-          ['RESUMEN GENERAL'],
-          ['Ventas Totales', `$${totalSales.toLocaleString()}`],
-          ['Total Transacciones', totalTransactions],
-          ['Ventas Hoy', `$${todaySales.toLocaleString()}`],
-          [],
-          ['VENTAS POR BARBERO'],
-          ...Object.entries(salesByBarber).map(([barber, total]) => [barber, `$${total.toLocaleString()}`]),
-        ];
+      const txHeaders = profile?.role === 'owner' 
+        ? ['Fecha', 'Servicios / Productos', 'Barbero', 'Total']
+        : ['Fecha', 'Servicios / Productos', 'Método', 'Total'];
 
-        const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
+      autoTable(doc, {
+        startY: listY + 5,
+        head: [txHeaders],
+        body: txData,
+        theme: 'striped',
+        headStyles: { fillColor: [20, 20, 20], textColor: 255 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: { 3: { halign: 'right', fontStyle: 'bold', textColor: [0, 100, 0] } }
+      });
 
-        // Sheet 2: Detailed Transactions
-        const transactionsData = [
-          ['ID', 'Fecha', 'Hora', 'Barbero', 'Método', 'Referencia', 'Total', 'Items'],
-          ...transactions.map(t => [
-            t.id.slice(0, 8),
-            new Date(t.date).toLocaleDateString('es-MX'),
-            new Date(t.date).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-            t.barber,
-            t.paymentMethod,
-            t.reference || '-',
-            t.total,
-            t.items.map(i => `${i.quantity}x ${i.name} ($${i.price})`).join(' | '),
-          ]),
-        ];
+      doc.save(`reporte_ventas_${new Date().getTime()}.pdf`);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+      alert("Hubo un error al generar el PDF. Revisa la consola para más detalles.");
+    }
+  };
 
-        const ws2 = XLSX.utils.aoa_to_sheet(transactionsData);
-        XLSX.utils.book_append_sheet(wb, ws2, 'Transacciones');
+  const exportToExcel = () => {
+    try {
+      const flatData = transactions.map(t => ({
+        Fecha: new Date(t.date).toLocaleString('es-MX'),
+        Barbero: t.barber,
+        Metodo_Pago: t.paymentMethod,
+        Total: t.total,
+        Servicios_Productos: t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')
+      }));
 
-        // Save Excel file using standard method
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const excelBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const ws = XLSX.utils.json_to_sheet(flatData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Ventas");
+      XLSX.writeFile(wb, `ventas_neron_${new Date().getTime()}.xlsx`);
+    } catch (err) {
+      console.error("Error generando Excel:", err);
+      alert("Hubo un error al generar el Excel.");
+    }
+  };
 
-        const url = window.URL.createObjectURL(excelBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'reporte_ventas.xlsx';
-        document.body.appendChild(link);
-        link.click();
+  return (
+    <div className="h-screen bg-zinc-950 flex flex-col p-6 max-w-7xl mx-auto w-full overflow-hidden">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wider">
+            {profile?.role === 'owner' ? 'Reportes' : 'Mis Estadísticas'}
+          </h2>
+          <p className="text-zinc-500">
+            {profile?.role === 'owner' ? 'Análisis del negocio' : 'Seguimiento de tus ventas'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={exportToExcel} className="gap-2 text-sm border-zinc-700">
+            <TrendingUp size={16} /> Excel
+          </Button>
+          <Button onClick={exportToPDF} className="gap-2 text-sm">
+            <Download size={16} /> PDF
+          </Button>
+        </div>
+      </div>
 
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }, 1000);
-      } catch (error: any) {
-        console.error('Error generando Excel:', error);
-        alert(`Error al generar Excel: ${error.message}`);
-      }
-    };
-
-    return (
-      <div className="h-screen bg-zinc-950 flex flex-col p-6 max-w-7xl mx-auto w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white">
-              <ChevronLeft />
-            </button>
-            <div>
-              <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wide">Reportes</h2>
-              <p className="text-zinc-500">Análisis de ventas y rendimiento</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <Button onClick={exportToPDF} className="gap-2 bg-red-600 hover:bg-red-700 text-white border-red-800">
-              <FileText size={18} /> Ver PDF
-            </Button>
-            <Button onClick={exportToExcel} className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-800">
-              <Download size={18} /> Exportar Excel
-            </Button>
+      {/* Date Range Filter */}
+      <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl mb-6 flex flex-wrap items-end gap-4">
+        <div>
+          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
+            Desde
+          </label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+            <input 
+              type="date"
+              value={dateRange.start}
+              onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              className="bg-zinc-950 border border-zinc-800 text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:border-amber-500 focus:outline-none"
+            />
           </div>
         </div>
-
-        {/* KPIs Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                <DollarSign size={24} />
-              </div>
-              <div>
-                <p className="text-zinc-500 text-sm uppercase font-bold">Ventas Totales</p>
-                <p className="text-3xl font-heading font-bold text-white">${totalSales.toLocaleString()}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
-                <TrendingUp size={24} />
-              </div>
-              <div>
-                <p className="text-zinc-500 text-sm uppercase font-bold">Transacciones</p>
-                <p className="text-3xl font-heading font-bold text-white">{totalTransactions}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
-                <Calendar size={24} />
-              </div>
-              <div>
-                <p className="text-zinc-500 text-sm uppercase font-bold">Ventas Hoy</p>
-                <p className="text-3xl font-heading font-bold text-white">${todaySales.toLocaleString()}</p>
-              </div>
-            </div>
+        <div>
+           <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
+            Hasta
+          </label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+            <input 
+              type="date"
+              value={dateRange.end}
+              min={dateRange.start}
+              onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              className="bg-zinc-950 border border-zinc-800 text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:border-amber-500 focus:outline-none"
+            />
           </div>
         </div>
+      </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wide">Ventas por Barbero</h3>
-            <div className="h-64">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 shrink-0">
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <DollarSign size={64} />
+          </div>
+          <p className="text-zinc-400 text-sm font-bold uppercase tracking-wider mb-1 text-amber-500">Ventas (Rango)</p>
+          <p className="text-4xl font-heading font-bold text-white">${totalSales.toLocaleString()}</p>
+        </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <FileText size={64} />
+          </div>
+          <p className="text-zinc-400 text-sm font-bold uppercase tracking-wider mb-1">Tickets (Rango)</p>
+          <p className="text-4xl font-heading font-bold text-white">{totalTransactions}</p>
+        </div>
+
+        <div className="bg-amber-500 p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-black">
+            <TrendingUp size={64} />
+          </div>
+          <p className="text-amber-950 text-sm font-bold uppercase tracking-wider mb-1">Ventas Hoy</p>
+          <p className="text-4xl font-heading font-bold text-black">${todaySales.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+        {profile?.role === 'owner' && (
+          <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col">
+            <h3 className="text-lg font-heading font-bold text-white mb-6 uppercase tracking-wider">
+              Rendimiento (Rango)
+            </h3>
+            <div className="flex-1 min-h-[300px] w-full" style={{ height: '300px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="name" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px' }}
+                <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="name" stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                  <Tooltip 
+                    cursor={{fill: '#27272a'}}
+                    contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', color: '#fff' }}
                     itemStyle={{ color: '#fff' }}
-                    cursor={{ fill: '#27272a' }}
+                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Ventas']}
                   />
-                  <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#f59e0b' : '#d97706'} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
+        )}
 
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wide">Tendencia Mensual</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={(() => {
-                  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-                  const currentYear = new Date().getFullYear();
-                  const currentMonth = new Date().getMonth();
-                  
-                  return Array.from({ length: daysInMonth }, (_, i) => {
-                    const day = i + 1;
-                    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    
-                    const total = transactions
-                      .filter(t => {
-                         const d = new Date(t.date);
-                         const localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                         return localDateStr === dateStr;
-                      })
-                      .reduce((sum, t) => sum + t.total, 0);
-                    return { day, total };
-                  });
-                })()}>
-                  <XAxis dataKey="day" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px' }}
-                    itemStyle={{ color: '#fff' }}
-                    labelStyle={{ color: '#a1a1aa' }}
-                  />
-                  <Line type="monotone" dataKey="total" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+        <div className={`${profile?.role === 'owner' ? 'lg:col-span-2' : 'lg:col-span-3'} bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col`}>
+          <h3 className="text-lg font-heading font-bold text-white mb-6 uppercase tracking-wider">
+            Últimas Transacciones
+          </h3>
+          <div className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-900 text-zinc-400 uppercase text-xs font-bold tracking-wider sticky top-0">
+                <tr>
+                  <th className="p-4 border-b border-zinc-800">Fecha</th>
+                  <th className="p-4 border-b border-zinc-800">Servicio/Producto</th>
+                  {profile?.role === 'owner' && <th className="p-4 border-b border-zinc-800">Barbero</th>}
+                  <th className="p-4 border-b border-zinc-800">Total</th>
+                  <th className="p-4 border-b border-zinc-800">Método</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {transactions.slice(0, 10).map((t) => (
+                  <tr key={t.id} className="hover:bg-zinc-800/50 transition-colors">
+                    <td className="p-4 text-zinc-300">
+                      {new Date(t.date).toLocaleDateString('es-MX', {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </td>
+                    <td className="p-4">
+                      {t.items.map((item, i) => (
+                        <div key={i} className="text-zinc-100 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+                          {item.quantity}x {item.name}
+                        </div>
+                      ))}
+                    </td>
+                    {profile?.role === 'owner' && <td className="p-4 text-zinc-400">{t.barber}</td>}
+                    <td className="p-4 font-bold text-emerald-400">${t.total}</td>
+                    <td className="p-4">
+                      <span className="px-2 py-1 bg-zinc-800 text-zinc-300 rounded text-xs">
+                        {t.paymentMethod}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {transactions.length === 0 && (
+              <div className="p-8 text-center text-zinc-500">
+                No hay ventas en este período.
+              </div>
+            )}
           </div>
         </div>
       </div>
-    );
-  } catch (e: any) {
-    return (
-      <div className="h-screen bg-zinc-950 flex flex-col items-center justify-center text-center p-6">
-        <AlertCircle className="text-red-500 w-16 h-16 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Error de Renderizado</h2>
-        <p className="text-zinc-400 mb-6 max-w-md bg-zinc-900 p-4 rounded font-mono text-sm border border-red-900/50">
-          {e.message}
-        </p>
-        <Button onClick={onBack}>Volver al Dashboard</Button>
-      </div>
-    );
-  }
+    </div>
+  );
 };
 
 export default Reports;

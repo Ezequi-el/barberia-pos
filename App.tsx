@@ -4,19 +4,21 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import WelcomeScreen from './components/WelcomeScreen';
-import Dashboard from './components/Dashboard';
+import AppLayout from './components/AppLayout';
 import POS from './components/POS';
 import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Customers from './components/Customers';
 import Appointments from './components/Appointments';
+import { usePreventUnload } from './hooks/usePreventUnload';
 
 const AppContent: React.FC = () => {
-  const { user, loading } = useAuth();
+  usePreventUnload(true); // Bring back user F5 warning specifically
+
+  const { user, profile, loading } = useAuth();
   const [view, setView] = useState<ViewState>('WELCOME');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
-  // Show loading state while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
@@ -28,7 +30,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Show authentication screens if user is not logged in
   if (!user) {
     if (authMode === 'register') {
       return <RegisterScreen onToggleLogin={() => setAuthMode('login')} />;
@@ -36,32 +37,37 @@ const AppContent: React.FC = () => {
     return <LoginScreen onToggleRegister={() => setAuthMode('register')} />;
   }
 
-  // Render main application views when authenticated
+  if (view === 'WELCOME') {
+    return <WelcomeScreen onEnter={() => setView('POS')} />;
+  }
+
+  // Handle protected views for Barber
+  if (profile?.role === 'barber' && view === 'INVENTORY') {
+    setView('POS');
+    return null;
+  }
+
   const renderView = () => {
     switch (view) {
-      case 'WELCOME':
-        return <WelcomeScreen onEnter={() => setView('DASHBOARD')} />;
-      case 'DASHBOARD':
-        return <Dashboard onNavigate={setView} onLogout={() => setView('WELCOME')} />;
       case 'POS':
-        return <POS onBack={() => setView('DASHBOARD')} />;
+        return <POS />;
       case 'INVENTORY':
-        return <Inventory onBack={() => setView('DASHBOARD')} />;
+        return <Inventory />;
       case 'REPORTS':
-        return <Reports onBack={() => setView('DASHBOARD')} />;
+        return <Reports />;
       case 'CUSTOMERS':
-        return <Customers onBack={() => setView('DASHBOARD')} />;
+        return <Customers />;
       case 'APPOINTMENTS':
-        return <Appointments onBack={() => setView('DASHBOARD')} />;
+        return <Appointments />;
       default:
-        return <WelcomeScreen onEnter={() => setView('DASHBOARD')} />;
+        return <POS />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500 selection:text-black">
+    <AppLayout currentView={view} onNavigate={setView}>
       {renderView()}
-    </div>
+    </AppLayout>
   );
 };
 

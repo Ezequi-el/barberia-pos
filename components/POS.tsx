@@ -1,17 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { CatalogItem, CartItem, ItemType, Barber, PaymentMethod, Transaction } from '../types';
-import { Search, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronLeft, Printer, CheckCircle, RotateCcw } from 'lucide-react';
+import { CatalogItem, CartItem, ItemType, PaymentMethod, Transaction } from '../types';
+import { Search, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Printer, CheckCircle, RotateCcw } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
 import { getCatalogItems, createTransaction, seedCatalog } from '../lib/database';
 import { SEED_CATALOG } from '../constants';
 
-interface POSProps {
-  onBack: () => void;
-}
-
-const POS: React.FC<POSProps> = ({ onBack }) => {
+const POS: React.FC = () => {
+  const { profile } = useAuth();
+  const barberName = profile?.full_name || profile?.role || 'Empleado';
   // State
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +24,6 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
   const [processing, setProcessing] = useState(false);
 
-  const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [reference, setReference] = useState('');
   const [cashAmount, setCashAmount] = useState('');
@@ -112,7 +110,6 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
     setCheckoutStep('payment');
     setIsCheckoutOpen(true);
     // Reset modal state
-    setSelectedBarber(null);
     setPaymentMethod(null);
     setReference('');
     setCashAmount('');
@@ -120,10 +117,6 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   };
 
   const handleProcessPayment = async () => {
-    if (!selectedBarber) {
-      alert("Por favor selecciona un barbero.");
-      return;
-    }
     if (!paymentMethod) {
       alert("Por favor selecciona un método de pago.");
       return;
@@ -137,7 +130,7 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       setProcessing(true);
 
       const transaction = await createTransaction({
-        barber: selectedBarber,
+        barber: barberName,
         items: cart,
         total: cartTotal,
         paymentMethod,
@@ -196,9 +189,6 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       <div className="flex-1 flex flex-col border-r border-zinc-800">
         {/* Header */}
         <div className="p-4 border-b border-zinc-800 bg-zinc-950 flex gap-4 items-center">
-          <button onClick={onBack} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white">
-            <ChevronLeft />
-          </button>
           <h2 className="text-xl font-heading font-bold text-white uppercase tracking-wider">Catálogo</h2>
           <div className="flex-1 max-w-md ml-auto relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-500" size={18} />
@@ -236,11 +226,11 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
                 key={item.id}
                 onClick={() => addToCart(item)}
                 disabled={item.type === ItemType.PRODUCT && (item.stock || 0) <= 0}
-                className="group flex flex-col p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 hover:border-amber-500/50 transition-all text-left relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                className="group flex flex-col min-h-[140px] p-5 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 hover:border-amber-500/50 transition-all text-left relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed justify-between shadow-sm active:scale-95 touch-manipulation"
               >
                 <div className="flex-1 mb-2">
-                  <h3 className="font-bold text-zinc-100 group-hover:text-amber-500 transition-colors">{item.name}</h3>
-                  {item.brand && <p className="text-xs text-zinc-500 uppercase">{item.brand}</p>}
+                  <h3 className="font-bold text-zinc-100 group-hover:text-amber-500 transition-colors text-lg leading-tight">{item.name}</h3>
+                  {item.category && <p className="text-xs text-zinc-500 uppercase mt-1">{item.category}</p>}
                 </div>
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-lg font-heading font-bold text-white">${item.price}</span>
@@ -322,31 +312,21 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       >
         {checkoutStep === 'payment' ? (
           <div className="space-y-6">
-            {/* 1. Select Barber */}
-            <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">1. Barbero Responsable</label>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.values(Barber).map(barber => (
-                  <button
-                    key={barber}
-                    onClick={() => setSelectedBarber(barber)}
-                    className={`p-4 border rounded-lg font-bold text-sm uppercase transition-all ${
-                      selectedBarber === barber 
-                        ? 'border-amber-500 bg-amber-500/10 text-amber-500' 
-                        : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500'
-                    }`}
-                  >
-                    {barber}
-                  </button>
-                ))}
+            {/* Barber info (auto from profile) */}
+            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-lg">
+                {barberName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Barbero responsable</p>
+                <p className="font-bold text-white">{barberName}</p>
               </div>
             </div>
 
-            {/* 2. Payment Method */}
-            {selectedBarber && (
-              <div className="animate-in fade-in slide-in-from-top-2">
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">2. Método de Pago</label>
-                <div className="grid grid-cols-3 gap-3">
+            {/* Payment Method */}
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Método de Pago</label>
+              <div className="grid grid-cols-3 gap-3">
                   {[
                     { id: PaymentMethod.CASH, icon: Banknote, label: 'Efectivo' },
                     { id: PaymentMethod.CARD, icon: CreditCard, label: 'Tarjeta' },
@@ -365,9 +345,8 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
                       <span className="text-xs font-bold uppercase">{method.label}</span>
                     </button>
                   ))}
-                </div>
               </div>
-            )}
+            </div>
 
             {/* 3. Details (Conditional) */}
             {paymentMethod === PaymentMethod.TRANSFER && (
@@ -405,14 +384,12 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
               <Button 
                 fullWidth 
                 onClick={handleProcessPayment}
-                disabled={
+              disabled={
                   processing ||
-                  !selectedBarber || 
                   !paymentMethod || 
                   (paymentMethod === PaymentMethod.TRANSFER && !reference) ||
                   (paymentMethod === PaymentMethod.CASH && (!cashAmount || parseFloat(cashAmount) < cartTotal))
-                }
-              >
+                }>
                 {processing ? 'Procesando...' : `Confirmar Pago ($${cartTotal})`}
               </Button>
             </div>
