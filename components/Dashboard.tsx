@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, Package, BarChart3, Settings, Scissors, LogOut, User, Activity, Calendar } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, Settings, Scissors, LogOut, User, Activity, Calendar, Users } from 'lucide-react';
 import { ViewState } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -71,7 +71,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onLogout }) => {
       borderColor: 'group-hover:border-pink-500/50'
     },
     {
-      id: 'CONFIG', // Placeholder, functionality not requested but UI needed
+      id: 'PERSONAL',
+      title: 'Personal',
+      icon: Users,
+      description: 'Gestión de barberos del equipo',
+      color: 'text-blue-400',
+      borderColor: 'group-hover:border-blue-500/50'
+    },
+    {
+      id: 'CONFIG',
       title: 'Configuración',
       icon: Settings,
       description: 'Ajustes del sistema',
