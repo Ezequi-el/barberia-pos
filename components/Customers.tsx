@@ -1,34 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Customer } from '../types';
-import { Users, Search, Plus, Edit2, Phone, Mail, Calendar } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Phone, Mail, Calendar, Trash2 } from 'lucide-react';
 import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
+import { getCustomers, createCustomer, deleteCustomer } from '../lib/database';
 
-// LocalStorage key
-const CUSTOMERS_KEY = 'neron_customers';
-
-const getCustomersFromStorage = (): Customer[] => {
-    try {
-        const data = localStorage.getItem(CUSTOMERS_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch (error) {
-        console.error('Error reading customers:', error);
-        return [];
-    }
-};
-
-const saveCustomersToStorage = (customers: Customer[]) => {
-    try {
-        localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers));
-    } catch (error) {
-        console.error('Error saving customers:', error);
-    }
-};
-
-const generateId = (): string => {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
 
 const Customers: React.FC = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -37,6 +14,7 @@ const Customers: React.FC = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({
         visits: 0,
@@ -47,9 +25,27 @@ const Customers: React.FC = () => {
         loadCustomers();
     }, []);
 
-    const loadCustomers = () => {
-        const data = getCustomersFromStorage();
-        setCustomers(data);
+    const loadCustomers = async () => {
+        try {
+            setLoading(true);
+            const data = await getCustomers();
+            // Map DB column names to frontend type
+            const mapped = data.map((r: any) => ({
+                id: r.id,
+                name: r.name,
+                phone: r.phone || '',
+                email: r.email || '',
+                visits: r.visits || 0,
+                totalSpent: r.total_spent || 0,
+                lastVisit: r.last_visit || undefined,
+                notes: r.notes || '',
+            })) as Customer[];
+            setCustomers(mapped);
+        } catch (err) {
+            console.error('Error cargando clientes:', err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const filteredCustomers = customers.filter(c =>
@@ -65,23 +61,22 @@ const Customers: React.FC = () => {
         }
 
         setSaving(true);
-        const customer: Customer = {
-            id: generateId(),
-            name: newCustomer.name,
-            phone: newCustomer.phone || '',
-            email: newCustomer.email || '',
-            visits: 0,
-            totalSpent: 0,
-            notes: newCustomer.notes || '',
-        };
-
-        const updated = [...customers, customer];
-        saveCustomersToStorage(updated);
-        setCustomers(updated);
-
-        setIsAddModalOpen(false);
-        setNewCustomer({ visits: 0, totalSpent: 0 });
-        setSaving(false);
+        try {
+            await createCustomer({
+                name: newCustomer.name,
+                phone: newCustomer.phone,
+                email: newCustomer.email,
+                notes: newCustomer.notes,
+            });
+            setIsAddModalOpen(false);
+            setNewCustomer({ visits: 0, totalSpent: 0 });
+            await loadCustomers();
+        } catch (err) {
+            console.error('Error creando cliente:', err);
+            alert('Error al crear el cliente.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleEdit = (customer: Customer) => {
@@ -89,22 +84,15 @@ const Customers: React.FC = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleUpdate = async () => {
-        if (!editingCustomer || !editingCustomer.name) {
-            alert('El nombre es obligatorio');
-            return;
+    const handleDelete = async (id: string, name: string) => {
+        if (!confirm(`¿Eliminar a "${name}" definitivamente?`)) return;
+        try {
+            await deleteCustomer(id);
+            await loadCustomers();
+        } catch (err) {
+            console.error('Error eliminando cliente:', err);
+            alert('Error al eliminar el cliente.');
         }
-
-        setSaving(true);
-        const updated = customers.map(c =>
-            c.id === editingCustomer.id ? editingCustomer : c
-        );
-        saveCustomersToStorage(updated);
-        setCustomers(updated);
-
-        setIsEditModalOpen(false);
-        setEditingCustomer(null);
-        setSaving(false);
     };
 
     return (
@@ -226,12 +214,19 @@ const Customers: React.FC = () => {
                                     }
                                 </td>
                                 <td className="p-4 text-center">
-                                    <button
+                                 <button
                                         onClick={() => handleEdit(customer)}
                                         className="p-2 hover:bg-amber-500/10 rounded-lg text-zinc-400 hover:text-amber-500 transition-colors"
                                         title="Editar cliente"
                                     >
                                         <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(customer.id, customer.name)}
+                                        className="p-2 hover:bg-red-500/10 rounded-lg text-zinc-600 hover:text-red-500 transition-colors"
+                                        title="Eliminar cliente"
+                                    >
+                                        <Trash2 size={16} />
                                     </button>
                                 </td>
                             </tr>
@@ -332,8 +327,8 @@ const Customers: React.FC = () => {
                         />
                     </div>
                     <div className="pt-4">
-                        <Button onClick={handleUpdate} fullWidth disabled={saving}>
-                            {saving ? 'Actualizando...' : 'Actualizar Cliente'}
+                        <Button onClick={() => setIsEditModalOpen(false)} fullWidth disabled={saving}>
+                            Cerrar
                         </Button>
                     </div>
                 </div>

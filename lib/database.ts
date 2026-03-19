@@ -434,3 +434,61 @@ export const deleteAppointment = async (id: string): Promise<void> => {
 
   if (error) throw error;
 };
+
+// ============================================================================
+// CUSTOMERS OPERATIONS
+// ============================================================================
+
+export const getCustomers = async () => {
+  if (!supabase) throw new Error('Supabase not initialized');
+  const businessId = await getBusinessId();
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const createCustomer = async (customer: {
+  name: string;
+  phone?: string;
+  email?: string;
+  notes?: string;
+}) => {
+  if (!supabase) throw new Error('Supabase not initialized');
+  const businessId = await getBusinessId();
+
+  const { data, error } = await supabase
+    .from('customers')
+    .insert([{
+      name: customer.name,
+      phone: customer.phone || null,
+      email: customer.email || null,
+      notes: customer.notes || null,
+      visits: 0,
+      total_spent: 0,
+      business_id: businessId,
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const deleteCustomer = async (id: string): Promise<void> => {
+  if (!supabase) throw new Error('Supabase not initialized');
+  const businessId = await getBusinessId();
+
+  const { error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('id', id)
+    .eq('business_id', businessId);
+
+  if (error) throw error;
+};
