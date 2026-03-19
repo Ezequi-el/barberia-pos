@@ -3,6 +3,7 @@ import { ViewState } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
+import ForgotPassword from './components/ForgotPassword';
 import WelcomeScreen from './components/WelcomeScreen';
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -10,11 +11,12 @@ import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Customers from './components/Customers';
 import Appointments from './components/Appointments';
+import Personal from './components/Personal';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
   const [view, setView] = useState<ViewState>('WELCOME');
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
 
   // Show loading state while checking authentication
   if (loading) {
@@ -33,7 +35,15 @@ const AppContent: React.FC = () => {
     if (authMode === 'register') {
       return <RegisterScreen onToggleLogin={() => setAuthMode('login')} />;
     }
-    return <LoginScreen onToggleRegister={() => setAuthMode('register')} />;
+    if (authMode === 'forgot') {
+      return <ForgotPassword onBack={() => setAuthMode('login')} />;
+    }
+    return (
+      <LoginScreen
+        onToggleRegister={() => setAuthMode('register')}
+        onForgotPassword={() => setAuthMode('forgot')}
+      />
+    );
   }
 
   // Render main application views when authenticated
@@ -53,6 +63,8 @@ const AppContent: React.FC = () => {
         return <Customers onBack={() => setView('DASHBOARD')} />;
       case 'APPOINTMENTS':
         return <Appointments onBack={() => setView('DASHBOARD')} />;
+      case 'PERSONAL':
+        return <Personal onBack={() => setView('DASHBOARD')} />;
       default:
         return <WelcomeScreen onEnter={() => setView('DASHBOARD')} />;
     }

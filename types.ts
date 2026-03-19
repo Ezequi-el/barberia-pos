@@ -60,4 +60,4 @@ export interface Customer {
   notes?: string;
 }
 
-export type ViewState = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'APPOINTMENTS';
+export type ViewState = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'APPOINTMENTS' | 'PERSONAL';

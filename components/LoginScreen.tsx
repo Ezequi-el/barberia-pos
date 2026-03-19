@@ -6,9 +6,10 @@ import Input from './Input';
 
 interface LoginScreenProps {
   onToggleRegister: () => void;
+  onForgotPassword: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onToggleRegister }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onToggleRegister, onForgotPassword }) => {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,16 +72,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onToggleRegister }) => {
             />
           </div>
 
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-            <Input
-              type="password"
-              placeholder="Contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="pl-12"
-            />
+          <div className="space-y-1">
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+              <Input
+                type="password"
+                placeholder="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="pl-12"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                className="text-xs text-amber-500 hover:text-amber-400 transition-colors"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
           </div>
 
           <Button

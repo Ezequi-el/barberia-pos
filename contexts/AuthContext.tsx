@@ -9,6 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   isDemoMode: boolean;
 }
 
@@ -122,6 +123,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string) => {
+    if (isDemoMode) {
+      console.log('🎭 Demo Mode: Password reset email simulated for:', email);
+      return { error: null };
+    } else {
+      if (!supabase) return { error: { message: 'Supabase not initialized' } as AuthError };
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      return { error };
+    }
+  };
+
   const signOut = async () => {
     if (isDemoMode) {
       // DEMO MODE: Clear demo session
@@ -144,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
+    resetPassword,
     isDemoMode,
   };
 
