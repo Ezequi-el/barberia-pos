@@ -492,3 +492,26 @@ export const deleteCustomer = async (id: string): Promise<void> => {
 
   if (error) throw error;
 };
+
+export const updateCustomer = async (
+  id: string,
+  updates: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    notes?: string;
+    visits?: number;
+    total_spent?: number;
+  }
+): Promise<void> => {
+  if (!supabase) throw new Error('Supabase not initialized');
+  const businessId = await getBusinessId();
+
+  const { error } = await supabase
+    .from('customers')
+    .update(updates)
+    .eq('id', id)
+    .eq('business_id', businessId);
+
+  if (error) throw error;
+};

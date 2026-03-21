@@ -4,7 +4,7 @@ import { Users, Search, Plus, Edit2, Phone, Mail, Calendar, Trash2 } from 'lucid
 import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
-import { getCustomers, createCustomer, deleteCustomer } from '../lib/database';
+import { getCustomers, createCustomer, deleteCustomer, updateCustomer } from '../lib/database';
 
 
 const Customers: React.FC = () => {
@@ -29,7 +29,6 @@ const Customers: React.FC = () => {
         try {
             setLoading(true);
             const data = await getCustomers();
-            // Map DB column names to frontend type
             const mapped = data.map((r: any) => ({
                 id: r.id,
                 name: r.name,
@@ -54,11 +53,29 @@ const Customers: React.FC = () => {
         c.email?.toLowerCase().includes(search.toLowerCase())
     );
 
+    // ─── Validation helpers ───────────────────────────────────────────────────
+    const validatePhone = (phone?: string): string | null => {
+        if (!phone || phone.trim() === '') return null; // optional field
+        if (!/^\d{10}$/.test(phone.trim())) return 'El teléfono debe tener exactamente 10 dígitos numéricos.';
+        return null;
+    };
+
+    const validateEmail = (email?: string): string | null => {
+        if (!email || email.trim() === '') return null; // optional field
+        if (!email.includes('@')) return 'El email debe contener @.';
+        return null;
+    };
+
+    // ─── Add ─────────────────────────────────────────────────────────────────
     const handleAdd = async () => {
         if (!newCustomer.name) {
             alert('El nombre es obligatorio');
             return;
         }
+        const phoneErr = validatePhone(newCustomer.phone);
+        if (phoneErr) { alert(phoneErr); return; }
+        const emailErr = validateEmail(newCustomer.email);
+        if (emailErr) { alert(emailErr); return; }
 
         setSaving(true);
         try {
@@ -79,11 +96,45 @@ const Customers: React.FC = () => {
         }
     };
 
+    // ─── Edit ─────────────────────────────────────────────────────────────────
     const handleEdit = (customer: Customer) => {
         setEditingCustomer({ ...customer });
         setIsEditModalOpen(true);
     };
 
+    const handleSaveEdit = async () => {
+        if (!editingCustomer) return;
+        if (!editingCustomer.name) {
+            alert('El nombre es obligatorio');
+            return;
+        }
+        const phoneErr = validatePhone(editingCustomer.phone);
+        if (phoneErr) { alert(phoneErr); return; }
+        const emailErr = validateEmail(editingCustomer.email);
+        if (emailErr) { alert(emailErr); return; }
+
+        setSaving(true);
+        try {
+            await updateCustomer(editingCustomer.id, {
+                name: editingCustomer.name,
+                phone: editingCustomer.phone || undefined,
+                email: editingCustomer.email || undefined,
+                notes: editingCustomer.notes || undefined,
+                visits: editingCustomer.visits,
+                total_spent: editingCustomer.totalSpent,
+            });
+            setIsEditModalOpen(false);
+            setEditingCustomer(null);
+            await loadCustomers();
+        } catch (err) {
+            console.error('Error actualizando cliente:', err);
+            alert('Error al actualizar el cliente.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // ─── Delete ───────────────────────────────────────────────────────────────
     const handleDelete = async (id: string, name: string) => {
         if (!confirm(`¿Eliminar a "${name}" definitivamente?`)) return;
         try {
@@ -248,18 +299,29 @@ const Customers: React.FC = () => {
                         value={newCustomer.name || ''}
                         onChange={e => setNewCustomer({ ...newCustomer, name: e.target.value })}
                     />
-                    <Input
-                        label="Teléfono"
-                        type="tel"
-                        value={newCustomer.phone || ''}
-                        onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                    />
-                    <Input
-                        label="Email"
-                        type="email"
-                        value={newCustomer.email || ''}
-                        onChange={e => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                    />
+                    <div>
+                        <Input
+                            label="Teléfono (10 dígitos)"
+                            type="tel"
+                            maxLength={10}
+                            value={newCustomer.phone || ''}
+                            onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                        />
+                        {newCustomer.phone && newCustomer.phone.length > 0 && newCustomer.phone.length < 10 && (
+                            <p className="text-red-400 text-xs mt-1">{10 - newCustomer.phone.length} dígitos faltantes</p>
+                        )}
+                    </div>
+                    <div>
+                        <Input
+                            label="Email"
+                            type="email"
+                            value={newCustomer.email || ''}
+                            onChange={e => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                        />
+                        {newCustomer.email && !newCustomer.email.includes('@') && (
+                            <p className="text-red-400 text-xs mt-1">El email debe contener @</p>
+                        )}
+                    </div>
                     <div>
                         <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
                             Notas
@@ -281,25 +343,36 @@ const Customers: React.FC = () => {
             </Modal>
 
             {/* Edit Modal */}
-            <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Editar Cliente">
+            <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingCustomer(null); }} title="Editar Cliente">
                 <div className="space-y-4">
                     <Input
                         label="Nombre Completo *"
                         value={editingCustomer?.name || ''}
                         onChange={e => setEditingCustomer(editingCustomer ? { ...editingCustomer, name: e.target.value } : null)}
                     />
-                    <Input
-                        label="Teléfono"
-                        type="tel"
-                        value={editingCustomer?.phone || ''}
-                        onChange={e => setEditingCustomer(editingCustomer ? { ...editingCustomer, phone: e.target.value } : null)}
-                    />
-                    <Input
-                        label="Email"
-                        type="email"
-                        value={editingCustomer?.email || ''}
-                        onChange={e => setEditingCustomer(editingCustomer ? { ...editingCustomer, email: e.target.value } : null)}
-                    />
+                    <div>
+                        <Input
+                            label="Teléfono (10 dígitos)"
+                            type="tel"
+                            maxLength={10}
+                            value={editingCustomer?.phone || ''}
+                            onChange={e => setEditingCustomer(editingCustomer ? { ...editingCustomer, phone: e.target.value.replace(/\D/g, '').slice(0, 10) } : null)}
+                        />
+                        {editingCustomer?.phone && editingCustomer.phone.length > 0 && editingCustomer.phone.length < 10 && (
+                            <p className="text-red-400 text-xs mt-1">{10 - editingCustomer.phone.length} dígitos faltantes</p>
+                        )}
+                    </div>
+                    <div>
+                        <Input
+                            label="Email"
+                            type="email"
+                            value={editingCustomer?.email || ''}
+                            onChange={e => setEditingCustomer(editingCustomer ? { ...editingCustomer, email: e.target.value } : null)}
+                        />
+                        {editingCustomer?.email && !editingCustomer.email.includes('@') && (
+                            <p className="text-red-400 text-xs mt-1">El email debe contener @</p>
+                        )}
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                         <Input
                             label="Visitas"
@@ -327,8 +400,8 @@ const Customers: React.FC = () => {
                         />
                     </div>
                     <div className="pt-4">
-                        <Button onClick={() => setIsEditModalOpen(false)} fullWidth disabled={saving}>
-                            Cerrar
+                        <Button onClick={handleSaveEdit} fullWidth disabled={saving}>
+                            {saving ? 'Guardando...' : 'Actualizar Cliente'}
                         </Button>
                     </div>
                 </div>

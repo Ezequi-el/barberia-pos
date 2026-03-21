@@ -197,17 +197,23 @@ const Reports: React.FC = () => {
       }
 
       doc.text('DESGLOSE DE TRANSACCIONES', 14, listY);
-      
-      const txData = transactions.map(t => [
-        new Date(t.date).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }),
-        t.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
-        profile?.role === 'owner' ? t.barber : t.paymentMethod,
-        `$${t.total.toLocaleString()}`
-      ]);
 
-      const txHeaders = profile?.role === 'owner' 
-        ? ['Fecha', 'Servicios / Productos', 'Barbero', 'Total']
-        : ['Fecha', 'Servicios / Productos', 'Método', 'Total'];
+      // Always include Método de Pago column
+      const txHeaders = profile?.role === 'owner'
+        ? ['Fecha', 'Servicios / Productos', 'Barbero', 'Método de Pago', 'Total']
+        : ['Fecha', 'Servicios / Productos', 'Método de Pago', 'Total'];
+
+      const txData = transactions.map(t => {
+        const fecha = new Date(t.date).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+        const items = t.items.map(i => `${i.quantity}x ${i.name}`).join(', ');
+        const method = t.paymentMethod;
+        const total = `$${t.total.toLocaleString()}`;
+        return profile?.role === 'owner'
+          ? [fecha, items, t.barber, method, total]
+          : [fecha, items, method, total];
+      });
+
+      const totalColIdx = profile?.role === 'owner' ? 4 : 3;
 
       autoTable(doc, {
         startY: listY + 5,
@@ -216,7 +222,36 @@ const Reports: React.FC = () => {
         theme: 'striped',
         headStyles: { fillColor: [20, 20, 20], textColor: 255 },
         styles: { fontSize: 9, cellPadding: 3 },
-        columnStyles: { 3: { halign: 'right', fontStyle: 'bold', textColor: [0, 100, 0] } }
+        columnStyles: { [totalColIdx]: { halign: 'right', fontStyle: 'bold', textColor: [0, 100, 0] } }
+      });
+
+      // ── Payment method subtotals ───────────────────────────────────────────
+      const subtotals: Record<string, number> = {};
+      transactions.forEach(t => {
+        subtotals[t.paymentMethod] = (subtotals[t.paymentMethod] || 0) + t.total;
+      });
+
+      let subY = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFont('helvetica', 'bold');
+      doc.text('RESUMEN POR MÉTODO DE PAGO', 14, subY);
+
+      const subtotalRows = Object.keys(subtotals).map(m => [m, `$${subtotals[m].toLocaleString()}`]);
+      subtotalRows.push(['TOTAL GENERAL', `$${totalSales.toLocaleString()}`]);
+
+      autoTable(doc, {
+        startY: subY + 5,
+        head: [['Método de Pago', 'Subtotal']],
+        body: subtotalRows,
+        theme: 'grid',
+        headStyles: { fillColor: [20, 20, 20], textColor: 255 },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+        didParseCell: (data: any) => {
+          if (data.row.index === subtotalRows.length - 1) {
+            data.cell.styles.fillColor = [245, 158, 11];
+            data.cell.styles.textColor = [0, 0, 0];
+          }
+        }
       });
 
       doc.save(`reporte_ventas_${new Date().getTime()}.pdf`);
@@ -228,6 +263,7 @@ const Reports: React.FC = () => {
 
   const exportToExcel = () => {
     try {
+      // ── Main transactions sheet ───────────────────────────────────────────
       const flatData = transactions.map(t => ({
         Fecha: new Date(t.date).toLocaleString('es-MX'),
         Barbero: t.barber,
@@ -236,9 +272,21 @@ const Reports: React.FC = () => {
         Servicios_Productos: t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')
       }));
 
+      // ── Payment subtotals ─────────────────────────────────────────────────
+      const subtotals: Record<string, number> = {};
+      transactions.forEach(t => {
+        subtotals[t.paymentMethod] = (subtotals[t.paymentMethod] || 0) + t.total;
+      });
+      const subtotalData = [
+        ...Object.keys(subtotals).map(m => ({ Metodo_Pago: m, Subtotal: subtotals[m] })),
+        { Metodo_Pago: 'TOTAL GENERAL', Subtotal: totalSales }
+      ];
+
       const ws = XLSX.utils.json_to_sheet(flatData);
+      const wsSubtotals = XLSX.utils.json_to_sheet(subtotalData);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Ventas");
+      XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+      XLSX.utils.book_append_sheet(wb, wsSubtotals, 'Resumen por Método');
       XLSX.writeFile(wb, `ventas_neron_${new Date().getTime()}.xlsx`);
     } catch (err) {
       console.error("Error generando Excel:", err);
