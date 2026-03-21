@@ -144,7 +144,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ currentView, onNavigate, children
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 relative bg-zinc-950 flex flex-col md:pt-0 pt-14 overflow-hidden">
+      <main className="flex-1 relative bg-zinc-950 flex flex-col md:pt-0 pt-14 overflow-y-auto">
         {children}
       </main>
     </div>

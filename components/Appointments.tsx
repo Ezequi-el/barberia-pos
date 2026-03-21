@@ -196,7 +196,7 @@ const Appointments: React.FC = () => {
     const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none";
 
     return (
-        <div className="min-h-screen bg-zinc-950 flex flex-col p-6 max-w-7xl mx-auto w-full">
+        <div className="min-h-full bg-zinc-950 flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
