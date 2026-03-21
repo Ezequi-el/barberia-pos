@@ -183,10 +183,10 @@ const POS: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen md:flex-row bg-zinc-950 overflow-hidden" style={{height: '100dvh'}}>
+    <div className="flex flex-col h-full md:flex-row bg-zinc-950 overflow-hidden">
       
       {/* LEFT PANEL: Catalog */}
-      <div className="h-[50vh] md:h-auto flex-none md:flex-1 flex flex-col border-r border-zinc-800 min-h-0">
+      <div className="h-[50vh] md:h-full flex-none md:flex-1 flex flex-col border-r border-zinc-800 min-h-0">
         {/* Header */}
         <div className="p-4 border-b border-zinc-800 bg-zinc-950 flex gap-4 items-center">
           <h2 className="text-xl font-heading font-bold text-white uppercase tracking-wider">Catálogo</h2>
@@ -247,7 +247,7 @@ const POS: React.FC = () => {
       </div>
 
       {/* RIGHT PANEL: Cart */}
-      <div className="h-[50vh] md:h-auto md:w-[400px] flex-none md:flex-none flex flex-col bg-zinc-900 border-l border-zinc-800 shadow-2xl z-10 min-h-0">
+      <div className="h-[50vh] md:h-full md:w-[400px] flex-none flex flex-col bg-zinc-900 border-l border-zinc-800 shadow-2xl z-10 min-h-0">
         <div className="p-6 border-b border-zinc-800 bg-zinc-900">
           <h2 className="text-xl font-heading font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>

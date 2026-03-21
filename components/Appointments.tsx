@@ -208,7 +208,7 @@ const Appointments: React.FC = () => {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                 {/* Calendar View */}
                 <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
                     <div className="flex items-center justify-between mb-6">
@@ -273,7 +273,7 @@ const Appointments: React.FC = () => {
                 </div>
 
                 {/* Day Details */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col h-full overflow-hidden">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col min-h-[400px] lg:h-full lg:overflow-hidden">
                     <h3 className="text-xl font-bold text-white mb-1">
                         {selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </h3>
