@@ -1,35 +1,30 @@
 import React, { useState } from 'react';
-import { ViewState } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './components/Toast';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import WelcomeScreen from './components/WelcomeScreen';
 import AppLayout from './components/AppLayout';
-import POS from './components/POS';
-import Inventory from './components/Inventory';
-import Reports from './components/Reports';
-import Customers from './components/Customers';
-import Appointments from './components/Appointments';
-import { usePreventUnload } from './hooks/usePreventUnload';
+import { ViewState } from './types';
 
 const AppContent: React.FC = () => {
-  usePreventUnload(true); // Bring back user F5 warning specifically
-
-  const { user, profile, loading } = useAuth();
-  const [view, setView] = useState<ViewState>('WELCOME');
+  const { user, loading } = useAuth();
+  const [view, setView] = useState<ViewState>('DASHBOARD');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
+  // Show loading state while checking authentication
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f172a] text-[#f8fafc] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-zinc-400 animate-pulse">Cargando...</p>
+          <div className="w-16 h-16 border-4 border-[#e2b808] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#94a3b8] animate-pulse">Cargando autenticación...</p>
         </div>
       </div>
     );
   }
 
+  // Show authentication screens if user is not logged in
   if (!user) {
     if (authMode === 'register') {
       return <RegisterScreen onToggleLogin={() => setAuthMode('login')} />;
@@ -37,44 +32,24 @@ const AppContent: React.FC = () => {
     return <LoginScreen onToggleRegister={() => setAuthMode('register')} />;
   }
 
-  if (view === 'WELCOME') {
-    return <WelcomeScreen onEnter={() => setView('POS')} />;
-  }
-
-  // Handle protected views for Barber
-  if (profile?.role === 'barber' && view === 'INVENTORY') {
-    setView('POS');
-    return null;
-  }
-
-  const renderView = () => {
-    switch (view) {
-      case 'POS':
-        return <POS />;
-      case 'INVENTORY':
-        return <Inventory />;
-      case 'REPORTS':
-        return <Reports />;
-      case 'CUSTOMERS':
-        return <Customers />;
-      case 'APPOINTMENTS':
-        return <Appointments />;
-      default:
-        return <POS />;
-    }
-  };
-
+  // Si el usuario está autenticado, mostrar AppLayout con animaciones
   return (
-    <AppLayout currentView={view} onNavigate={setView}>
-      {renderView()}
-    </AppLayout>
+    <div className="min-h-screen bg-[#0f172a] text-[#f8fafc] font-sans selection:bg-[#e2b808] selection:text-[#0f172a]">
+      <AppLayout 
+        currentView={view} 
+        onNavigate={setView} 
+        onLogout={() => setView('DASHBOARD')} 
+      />
+    </div>
   );
 };
 
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 };

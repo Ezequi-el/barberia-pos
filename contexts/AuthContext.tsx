@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { Profile } from '../types';
+import { DBProfile } from '../types';
 import { Globals } from '../lib/globals';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  profile: Profile | null;
+  profile: DBProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
@@ -27,7 +27,7 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<DBProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch or create profile logic
@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile in AuthContext:', error);
       } else if (data) {
-        setProfile(data as Profile);
+        setProfile(data as DBProfile);
         Globals.BUSINESS_ID = data.business_id;
       } else {
         // Fallback: If no profile exists yet, create one temporarily so app doesn't crash
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
           
         if (!insertError && newProfile) {
-          setProfile(newProfile as Profile);
+          setProfile(newProfile as DBProfile);
           Globals.BUSINESS_ID = newProfile.business_id;
         }
       }
@@ -74,11 +74,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Set loading to false immediately after supabase is confirmed to be available
-    // and before listening for auth changes, to prevent synchronous web lock.
-    setLoading(false);
+    // First, restore any existing session from localStorage before unblocking the UI.
+    // This prevents the root from rendering empty when a valid session token exists.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      Globals.USER_ID = session?.user?.id ?? null;
+      if (!session?.user) {
+        setProfile(null);
+        Globals.BUSINESS_ID = null;
+      }
+      setLoading(false); // Unblock UI only after session is restored
+    });
 
-    // Listen for auth changes
+    // Then listen for future auth changes (sign in, sign out, token refresh)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -89,7 +98,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         Globals.BUSINESS_ID = null;
       }
-      setLoading(false); // Unblock the UI instantly after auth state is set!
     });
 
     return () => {

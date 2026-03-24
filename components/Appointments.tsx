@@ -181,48 +181,48 @@ const Appointments: React.FC = () => {
     // ─── Status badge ─────────────────────────────────────────────────────────
     const statusBadge = (status: string) => {
         if (status === 'cancelled') return (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-bold uppercase">Cancelada</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-bold uppercase">Cancelada</span>
         );
         if (status === 'completed') return (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-bold uppercase">Completada</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold uppercase">Completada</span>
         );
         return (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold uppercase">Programada</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#e2b808]/20 text-[#e2b808] font-bold uppercase">Programada</span>
         );
     };
 
     // ─── Shared select class ──────────────────────────────────────────────────
-    const selectClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none";
-    const inputClass = "w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none";
+    const selectClass = "w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-[#f8fafc] focus:border-[#e2b808] focus:outline-none";
+    const inputClass = "w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-[#f8fafc] focus:border-[#e2b808] focus:outline-none";
 
     return (
-        <div className="min-h-full bg-zinc-950 flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full">
+        <div className="min-h-full bg-[#0f172a] flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wider">Agenda</h2>
-                    <p className="text-zinc-500">Gestión de citas y horarios</p>
+                    <h2 className="text-3xl font-heading font-bold text-[#e2b808] uppercase tracking-wider">Agenda</h2>
+                    <p className="text-[#94a3b8]">Gestión de citas y horarios</p>
                 </div>
-                <Button onClick={() => setShowNewModal(true)} className="gap-2 bg-amber-500 hover:bg-amber-600 text-black border-amber-600">
+                <Button onClick={() => setShowNewModal(true)} className="gap-2 bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]">
                     <Plus size={18} /> Nueva Cita
                 </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                 {/* Calendar View */}
-                <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
+                <div className="lg:col-span-2 bg-[#1e293b] border border-[#334155] rounded-xl p-6 flex flex-col">
                     <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-xl font-bold text-white capitalize">{monthName}</h3>
+                        <h3 className="text-xl font-bold text-[#f8fafc] capitalize">{monthName}</h3>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}
-                                className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white"
+                                className="p-2 hover:bg-[#334155] rounded-lg text-[#94a3b8] hover:text-[#f8fafc]"
                             >
                                 <ChevronLeft size={20} />
                             </button>
                             <button
                                 onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}
-                                className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white"
+                                className="p-2 hover:bg-[#334155] rounded-lg text-[#94a3b8] hover:text-[#f8fafc]"
                             >
                                 <ChevronLeft size={20} className="rotate-180" />
                             </button>
@@ -231,7 +231,7 @@ const Appointments: React.FC = () => {
 
                     <div className="grid grid-cols-7 gap-2 text-center mb-2">
                         {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(day => (
-                            <div key={day} className="text-zinc-500 text-sm font-bold py-2">{day}</div>
+                            <div key={day} className="text-[#64748b] text-sm font-bold py-2">{day}</div>
                         ))}
                     </div>
 
@@ -251,19 +251,19 @@ const Appointments: React.FC = () => {
                                     className={`
                     relative p-2 rounded-lg border transition-all flex flex-col items-start justify-start h-24
                     ${isSelected
-                                            ? 'bg-amber-500/10 border-amber-500 text-white'
-                                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900'}
+                                            ? 'bg-[#e2b808]/10 border-[#e2b808] text-[#f8fafc]'
+                                            : 'bg-[#0f172a] border-[#334155] text-[#94a3b8] hover:border-[#475569] hover:bg-[#1e293b]'}
                   `}
                                 >
-                                    <span className={`text-sm font-bold ${isToday ? 'text-amber-500' : ''}`}>{day}</span>
+                                    <span className={`text-sm font-bold ${isToday ? 'text-[#e2b808]' : ''}`}>{day}</span>
                                     <div className="mt-2 flex flex-col gap-1 w-full">
                                         {dayAppointments.slice(0, 3).map((apt, i) => (
-                                            <div key={i} className={`text-[10px] px-1 rounded truncate w-full text-left ${apt.status === 'cancelled' ? 'bg-red-900/40 text-red-400 line-through' : 'bg-zinc-800'}`}>
+                                            <div key={i} className={`text-[10px] px-1 rounded truncate w-full text-left ${apt.status === 'cancelled' ? 'bg-rose-900/40 text-rose-400 line-through' : 'bg-[#334155]'}`}>
                                                 {apt.time} - {apt.clientName}
                                             </div>
                                         ))}
                                         {dayAppointments.length > 3 && (
-                                            <div className="text-[10px] text-zinc-500">+{dayAppointments.length - 3} más</div>
+                                            <div className="text-[10px] text-[#64748b]">+{dayAppointments.length - 3} más</div>
                                         )}
                                     </div>
                                 </button>
@@ -273,15 +273,15 @@ const Appointments: React.FC = () => {
                 </div>
 
                 {/* Day Details */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col min-h-[400px] lg:h-full lg:overflow-hidden">
-                    <h3 className="text-xl font-bold text-white mb-1">
+                <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6 flex flex-col min-h-[400px] lg:h-full lg:overflow-hidden">
+                    <h3 className="text-xl font-bold text-[#f8fafc] mb-1">
                         {selectedDate.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </h3>
-                    <p className="text-zinc-500 mb-6">{selectedDateAppointments.length} citas programadas</p>
+                    <p className="text-[#94a3b8] mb-6">{selectedDateAppointments.length} citas programadas</p>
 
                     <div className="flex-1 overflow-y-auto space-y-4 pr-2">
                         {selectedDateAppointments.length === 0 ? (
-                            <div className="text-center py-12 text-zinc-600">
+                            <div className="text-center py-12 text-[#64748b]">
                                 <CalendarIcon size={48} className="mx-auto mb-4 opacity-20" />
                                 <p>No hay citas para este día</p>
                             </div>
@@ -291,10 +291,10 @@ const Appointments: React.FC = () => {
                                 .map(apt => (
                                     <div
                                         key={apt.id}
-                                        className={`bg-zinc-950 border p-4 rounded-lg transition-colors ${apt.status === 'cancelled' ? 'border-red-900/40 opacity-60' : 'border-zinc-800 group hover:border-zinc-700'}`}
+                                        className={`bg-[#0f172a] border p-4 rounded-lg transition-colors ${apt.status === 'cancelled' ? 'border-rose-900/40 opacity-60' : 'border-[#334155] group hover:border-[#475569]'}`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
-                                            <div className="flex items-center gap-2 text-amber-500 font-mono font-bold">
+                                            <div className="flex items-center gap-2 text-[#e2b808] font-mono font-bold">
                                                 <Clock size={16} />
                                                 {apt.time}
                                             </div>
@@ -303,14 +303,14 @@ const Appointments: React.FC = () => {
                                                     <>
                                                         <button
                                                             onClick={() => handleOpenEdit(apt)}
-                                                            className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                                            className="p-1.5 rounded-lg text-[#94a3b8] hover:text-[#e2b808] hover:bg-[#e2b808]/10 transition-colors"
                                                             title="Editar cita"
                                                         >
                                                             <Edit2 size={14} />
                                                         </button>
                                                         <button
                                                             onClick={() => handleCancel(apt)}
-                                                            className="p-1.5 rounded-lg text-zinc-500 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+                                                            className="p-1.5 rounded-lg text-[#94a3b8] hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
                                                             title="Cancelar cita"
                                                         >
                                                             <XCircle size={14} />
@@ -319,7 +319,7 @@ const Appointments: React.FC = () => {
                                                 )}
                                                 <button
                                                     onClick={() => handleDelete(apt.id)}
-                                                    className="p-1.5 rounded-lg text-zinc-600 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                                    className="p-1.5 rounded-lg text-[#64748b] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
                                                     title="Eliminar cita"
                                                 >
                                                     <Trash2 size={14} />
@@ -327,15 +327,15 @@ const Appointments: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="flex items-center justify-between mb-1">
-                                            <h4 className="text-white font-bold">{apt.clientName}</h4>
+                                            <h4 className="text-[#f8fafc] font-bold">{apt.clientName}</h4>
                                             {statusBadge(apt.status)}
                                         </div>
-                                        <div className="flex items-center gap-2 text-sm text-zinc-400 mb-1">
+                                        <div className="flex items-center gap-2 text-sm text-[#94a3b8] mb-1">
                                             <Scissors size={14} />
                                             {apt.service}
                                         </div>
                                         {apt.barber && (
-                                            <div className="flex items-center gap-2 text-xs text-zinc-500">
+                                            <div className="flex items-center gap-2 text-xs text-[#64748b]">
                                                 <User size={12} />
                                                 {apt.barber}
                                             </div>
@@ -350,17 +350,17 @@ const Appointments: React.FC = () => {
             {/* ── New Appointment Modal ── */}
             {showNewModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                    <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white">Nueva Cita</h3>
-                            <button onClick={() => setShowNewModal(false)} className="text-zinc-500 hover:text-white">
+                            <h3 className="text-xl font-bold text-[#f8fafc]">Nueva Cita</h3>
+                            <button onClick={() => setShowNewModal(false)} className="text-[#94a3b8] hover:text-[#f8fafc]">
                                 <X size={24} />
                             </button>
                         </div>
 
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Cliente *</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Cliente *</label>
                                 <input
                                     type="text"
                                     required
@@ -372,7 +372,7 @@ const Appointments: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Teléfono (10 dígitos)</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Teléfono (10 dígitos)</label>
                                 <input
                                     type="tel"
                                     value={form.phone}
@@ -382,13 +382,13 @@ const Appointments: React.FC = () => {
                                     maxLength={10}
                                 />
                                 {form.phone.length > 0 && form.phone.length < 10 && (
-                                    <p className="text-red-400 text-xs mt-1">{10 - form.phone.length} dígitos faltantes</p>
+                                    <p className="text-rose-400 text-xs mt-1">{10 - form.phone.length} dígitos faltantes</p>
                                 )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-zinc-400 mb-1">Fecha</label>
+                                    <label className="block text-sm font-medium text-[#94a3b8] mb-1">Fecha</label>
                                     <input
                                         type="date"
                                         required
@@ -398,7 +398,7 @@ const Appointments: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-zinc-400 mb-1">Hora</label>
+                                    <label className="block text-sm font-medium text-[#94a3b8] mb-1">Hora</label>
                                     <input
                                         type="time"
                                         required
@@ -410,7 +410,7 @@ const Appointments: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Servicio</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Servicio</label>
                                 {services.length > 0 ? (
                                     <select
                                         value={form.service}
@@ -433,7 +433,7 @@ const Appointments: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Barbero</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Barbero</label>
                                 <input
                                     type="text"
                                     value={form.barber}
@@ -447,7 +447,7 @@ const Appointments: React.FC = () => {
                                 <Button type="button" onClick={() => setShowNewModal(false)} variant="secondary" className="flex-1" disabled={saving}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="flex-1 bg-amber-500 hover:bg-amber-600 text-black border-amber-600" disabled={saving}>
+                                <Button type="submit" className="flex-1 bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]" disabled={saving}>
                                     {saving ? 'Guardando...' : 'Guardar Cita'}
                                 </Button>
                             </div>
@@ -459,17 +459,17 @@ const Appointments: React.FC = () => {
             {/* ── Edit Appointment Modal ── */}
             {showEditModal && editingApt && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                    <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6 w-full max-w-md shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white">Editar Cita</h3>
-                            <button onClick={() => { setShowEditModal(false); setEditingApt(null); }} className="text-zinc-500 hover:text-white">
+                            <h3 className="text-xl font-bold text-[#f8fafc]">Editar Cita</h3>
+                            <button onClick={() => { setShowEditModal(false); setEditingApt(null); }} className="text-[#94a3b8] hover:text-[#f8fafc]">
                                 <X size={24} />
                             </button>
                         </div>
 
                         <form onSubmit={handleSaveEdit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Cliente *</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Cliente *</label>
                                 <input
                                     type="text"
                                     required
@@ -481,7 +481,7 @@ const Appointments: React.FC = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-zinc-400 mb-1">Fecha</label>
+                                    <label className="block text-sm font-medium text-[#94a3b8] mb-1">Fecha</label>
                                     <input
                                         type="date"
                                         required
@@ -491,7 +491,7 @@ const Appointments: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-zinc-400 mb-1">Hora</label>
+                                    <label className="block text-sm font-medium text-[#94a3b8] mb-1">Hora</label>
                                     <input
                                         type="time"
                                         required
@@ -503,7 +503,7 @@ const Appointments: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Servicio</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Servicio</label>
                                 {services.length > 0 ? (
                                     <select
                                         value={editingApt.service}
@@ -525,7 +525,7 @@ const Appointments: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Barbero</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Barbero</label>
                                 <input
                                     type="text"
                                     value={editingApt.barber}
@@ -536,12 +536,12 @@ const Appointments: React.FC = () => {
 
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-400 mb-1">Notas</label>
+                                <label className="block text-sm font-medium text-[#94a3b8] mb-1">Notas</label>
                                 <textarea
                                     rows={2}
                                     value={editingApt.notes || ''}
                                     onChange={(e) => setEditingApt({ ...editingApt, notes: e.target.value })}
-                                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none resize-none"
+                                    className="w-full bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-[#f8fafc] focus:border-[#e2b808] focus:outline-none resize-none"
                                     placeholder="Observaciones adicionales..."
                                 />
                             </div>
@@ -550,7 +550,7 @@ const Appointments: React.FC = () => {
                                 <Button type="button" onClick={() => { setShowEditModal(false); setEditingApt(null); }} variant="secondary" className="flex-1" disabled={saving}>
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="flex-1 bg-amber-500 hover:bg-amber-600 text-black border-amber-600" disabled={saving}>
+                                <Button type="submit" className="flex-1 bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]" disabled={saving}>
                                     {saving ? 'Guardando...' : 'Guardar Cambios'}
                                 </Button>
                             </div>
