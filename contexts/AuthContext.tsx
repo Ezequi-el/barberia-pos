@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, isDemoMode } from '../lib/supabase';
 import { DBProfile } from '../types';
 import { Globals } from '../lib/globals';
 
@@ -9,6 +9,8 @@ interface AuthContextType {
   session: Session | null;
   profile: DBProfile | null;
   loading: boolean;
+  isOwner: boolean;
+  isDemoMode: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -29,6 +31,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<DBProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Check if the user's account is active; signs out and returns false if disabled
+  const checkActivo = async (userId: string): Promise<boolean> => {
+    if (!supabase) return true;
+    const { data } = await supabase
+      .from('profiles')
+      .select('activo')
+      .eq('id', userId)
+      .single();
+    if (data && data.activo === false) {
+      await supabase.auth.signOut();
+      return false;
+    }
+    return true;
+  };
 
   // Fetch or create profile logic
   const fetchProfile = async (currentUser: User) => {
@@ -90,13 +107,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Then listen for future auth changes (sign in, sign out, token refresh)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Set state synchronously — never block this callback with async/await
       setSession(session);
       setUser(session?.user ?? null);
       Globals.USER_ID = session?.user?.id ?? null;
       if (!session?.user) {
         setProfile(null);
         Globals.BUSINESS_ID = null;
+      }
+
+      // Validate activo independently (fire-and-forget) on SIGNED_IN
+      if (event === 'SIGNED_IN' && session?.user) {
+        checkActivo(session.user.id).then(active => {
+          if (!active) {
+            // signOut already called inside checkActivo;
+            // React state will update via the resulting SIGNED_OUT event
+          }
+        }).catch(err => console.error('Error validando activo en onAuthStateChange:', err));
       }
     });
 
@@ -115,11 +143,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     if (!supabase) return { error: { message: 'Supabase not initialized' } as AuthError };
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
+    
+    if (error) return { error };
+
+    if (data.user) {
+      const active = await checkActivo(data.user.id);
+      if (!active) {
+        return { error: { message: 'Tu cuenta ha sido deshabilitada. Contacta al administrador.', status: 403 } as unknown as AuthError };
+      }
+    }
+
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -140,9 +178,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     if (supabase) {
       await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
       setProfile(null);
       Globals.BUSINESS_ID = null;
       Globals.USER_ID = null;
+      
+      // Limpiar storage
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Forzar redirección al login
+      window.location.href = '/';
     }
   };
 
@@ -151,6 +198,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     session,
     profile,
     loading,
+    isOwner: profile?.role === 'owner',
+    isDemoMode,
     signIn,
     signUp,
     signOut,

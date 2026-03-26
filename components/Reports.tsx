@@ -16,12 +16,16 @@ import {
   Filter,
   Eye,
   EyeOff,
-  AlertTriangle
+  AlertTriangle,
+  Printer
 } from 'lucide-react';
 import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
+import CorteDeCajaModal from './CorteDeCajaModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { getTransactions } from '../lib/database';
 import { cancelTransactionWithPin } from '../lib/admin';
 import { useToastNotifications } from './Toast';
@@ -40,6 +44,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
   
   // Estado para cancelación con PIN
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [corteModalOpen, setCorteModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [adminPin, setAdminPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -49,7 +54,8 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
   const { showSuccess, showError, showWarning, showInfo } = useToastNotifications();
   
   // Autenticación
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isBarber = profile?.role === 'barber';
 
   // Touch target mínimo: 44px
   const TOUCH_TARGET = 'min-h-[44px] min-w-[44px]';
@@ -57,12 +63,12 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
   // Cargar transacciones
   useEffect(() => {
     loadTransactions();
-  }, []);
+  }, [user, isBarber]);
 
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const data = await getTransactions();
+      const data = await getTransactions(100, isBarber ? user?.id : undefined);
       setTransactions(data);
     } catch (error: any) {
       console.error('Error loading transactions:', error);
@@ -120,7 +126,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
     }, {} as Record<string, number>);
     
     const topPaymentMethod = Object.entries(paymentMethods)
-      .sort(([,a], [,b]) => b - a)[0]?.[0] || 'N/A';
+      .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'N/A';
     
     return {
       totalSales,
@@ -133,7 +139,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
     };
   }, [filteredTransactions]);
 
-  // Exportar a CSV
+  // Exportar a CSV de forma amena para Excel (Español)
   const exportCSV = () => {
     try {
       const headers = ['ID', 'Fecha', 'Barbero', 'Método', 'Referencia', 'Total', 'Items'];
@@ -144,24 +150,139 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
         t.paymentMethod,
         t.reference || '-',
         t.total.toFixed(2),
-        t.items.map(i => `${i.quantity}x ${i.name}`).join(' | ')
+        `"${t.items.map(i => `${i.quantity}x ${i.name}`).join(' | ')}"`
       ]);
 
-      const csvContent = "data:text/csv;charset=utf-8,"
-        + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      // Totales
+      const summaryRows = [
+        [], // Línea en blanco
+        ['', '', '', '', 'RESUMEN POR MÉTODO DE PAGO', '', ''],
+      ];
+      
+      const paymentTotals = filteredTransactions.reduce((acc, t) => {
+        acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + t.total;
+        return acc;
+      }, {} as Record<string, number>);
 
-      const encodedUri = encodeURI(csvContent);
+      Object.entries(paymentTotals).forEach(([method, total]) => {
+        summaryRows.push(['', '', '', '', method, (total as number).toFixed(2), '']);
+      });
+
+      summaryRows.push(['', '', '', '', 'TOTAL GENERAL', stats.totalSales.toFixed(2), '']);
+
+      const BOM = '\uFEFF';
+      const csvContent = BOM + [
+        headers.join(';'), 
+        ...rows.map(r => r.join(';')),
+        ...summaryRows.map(r => r.join(';'))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
+      link.setAttribute("href", url);
       link.setAttribute("download", `barberia_reporte_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
       showSuccess('Reporte exportado exitosamente', 'Exportación completa');
     } catch (error) {
       console.error('Error exporting CSV:', error);
       showError('Error al exportar el reporte', 'Error de exportación');
+    }
+  };
+
+  // Exportar a PDF detallado y profesional usando jsPDF
+  const exportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Header Banner (Estilo Premium Velo POS)
+      doc.setFillColor(15, 23, 42); // bg-[#0f172a]
+      doc.rect(0, 0, 210, 24, 'F');
+      
+      doc.setTextColor(226, 184, 8); // text-[#e2b808]
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text('VELO POS', 14, 16);
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text('REPORTE DE VENTAS', 150, 15);
+      
+      // Info texto
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(10);
+      doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, 34);
+      if (filterDate) {
+        doc.text(`Filtro de Fecha: ${filterDate}`, 14, 40);
+      }
+      
+      // Tabla principal de transacciones
+      const tableColumn = ["ID", "Fecha", "Barbero", "Método", "Total", "Items"];
+      const tableRows = filteredTransactions.map(t => [
+        t.id.slice(0, 8).toUpperCase(),
+        new Date(t.date).toLocaleString(),
+        t.barber,
+        t.paymentMethod,
+        `$${t.total.toFixed(2)}`,
+        t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 46,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [226, 184, 8], textColor: [15, 23, 42], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] }
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY || 46;
+
+      // Cálculo de totales desglosados
+      const paymentTotals = filteredTransactions.reduce((acc, t) => {
+        acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + t.total;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const summaryRows = Object.entries(paymentTotals).map(([method, total]) => [
+        method, 
+        `$${(total as number).toFixed(2)}`
+      ]);
+
+      // Agregar fila de total general
+      summaryRows.push(['TOTAL GENERAL', `$${stats.totalSales.toLocaleString()}`]);
+
+      // Tabla secundaria de Resumen
+      autoTable(doc, {
+        head: [['Resumen por Método', 'Monto']],
+        body: summaryRows,
+        startY: finalY + 12,
+        theme: 'grid',
+        tableWidth: 80,
+        margin: { left: 14 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+        didParseCell: function(data) {
+          // Resaltar Total General
+          if (data.row.index === summaryRows.length - 1 && data.section === 'body') {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [226, 184, 8];
+            data.cell.styles.textColor = [15, 23, 42];
+          }
+        }
+      });
+
+      doc.save(`velo_pos_reporte_${new Date().toISOString().split('T')[0]}.pdf`);
+      showSuccess('PDF generado exitosamente', 'Exportación completa');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      showError('Error al generar PDF', 'Error de exportación');
     }
   };
 
@@ -243,7 +364,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
           </button>
           <div>
             <h2 className="text-2xl md:text-3xl font-heading font-bold text-[#e2b808] uppercase tracking-wide">
-              Reportes
+              {isBarber ? 'Mis Reportes' : 'Reportes'}
             </h2>
             <p className="text-[#94a3b8] text-sm md:text-base">
               Análisis financiero y operativo
@@ -252,17 +373,34 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button 
-            onClick={exportCSV} 
-            variant="secondary" 
-            className="gap-2 text-sm md:text-base"
-          >
-            <Download size={18} /> Exportar Excel
-          </Button>
+          {!isBarber && (
+            <>
+              <Button 
+                onClick={() => setCorteModalOpen(true)}
+                className="gap-2 text-sm md:text-base bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] print:hidden"
+              >
+                <Printer size={18} /> Corte de Caja
+              </Button>
+              <Button 
+                onClick={exportCSV} 
+                variant="secondary" 
+                className="gap-2 text-sm md:text-base print:hidden"
+              >
+                <Download size={18} /> Exportar Excel
+              </Button>
+              <Button 
+                onClick={exportPDF} 
+                variant="secondary" 
+                className="gap-2 text-sm md:text-base print:hidden"
+              >
+                <Printer size={18} /> Exportar PDF
+              </Button>
+            </>
+          )}
           <Button 
             onClick={loadTransactions} 
             variant="secondary" 
-            className="gap-2 text-sm md:text-base"
+            className="gap-2 text-sm md:text-base hidden print:hidden"
           >
             <RefreshCw size={18} /> Actualizar
           </Button>
@@ -295,20 +433,22 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
             />
           </div>
           
-          {/* Filtro por barbero */}
-          <div>
-            <label className="block text-xs text-[#94a3b8] mb-2">Barbero</label>
-            <select
-              value={filterBarber}
-              onChange={(e) => setFilterBarber(e.target.value)}
-              className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
-            >
-              <option value="">Todos los barberos</option>
-              {stats.barbers.map(barber => (
-                <option key={barber} value={barber}>{barber}</option>
-              ))}
-            </select>
-          </div>
+          {/* Filtro por barbero (Oculto para barberos) */}
+          {!isBarber && (
+            <div>
+              <label className="block text-xs text-[#94a3b8] mb-2">Barbero</label>
+              <select
+                value={filterBarber}
+                onChange={(e) => setFilterBarber(e.target.value)}
+                className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
+              >
+                <option value="">Todos los barberos</option>
+                {stats.barbers.map(barber => (
+                  <option key={barber} value={barber}>{barber}</option>
+                ))}
+              </select>
+            </div>
+          )}
           
           {/* Filtro por método de pago */}
           <div>
@@ -409,7 +549,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
         {/* Gráfico */}
         <div className="lg:col-span-1 bg-[#1e293b] border border-[#334155] rounded-xl p-4 md:p-6 flex flex-col">
           <h4 className="text-[#f8fafc] font-bold uppercase text-sm mb-4 md:mb-6">
-            Rendimiento por Barbero
+            {isBarber ? 'Mi Rendimiento' : 'Rendimiento por Barbero'}
           </h4>
           <div className="flex-1 w-full min-h-[200px] md:min-h-[250px]">
             {stats.chartData.length > 0 ? (
@@ -685,6 +825,12 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
           </div>
         )}
       </Modal>
+
+      {/* Modal Corte de Caja */}
+      <CorteDeCajaModal 
+        isOpen={corteModalOpen} 
+        onClose={() => setCorteModalOpen(false)} 
+      />
     </div>
   );
 };

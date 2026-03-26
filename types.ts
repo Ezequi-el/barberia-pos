@@ -63,6 +63,7 @@ export interface DBPedido {
   total: number;
   payment_method: PaymentMethod;
   reference?: string;
+  customer_id?: string | null;
 }
 
 // Tabla: variantes
@@ -83,6 +84,9 @@ export interface DBProfile {
   id: string;
   created_at: string;
   business_id: string;
+  role: 'owner' | 'barber';
+  full_name: string | null;
+  activo?: boolean;
 }
 
 // Tabla: citas
@@ -139,6 +143,7 @@ export interface Transaction {
   paymentMethod: PaymentMethod;
   reference?: string;
   status?: TransactionStatus;
+  customerId?: string;
 }
 
 // Para citas/agendamiento
@@ -172,6 +177,18 @@ export interface BarberSession {
   name: string;
   birthDate: string;
   chairNumber: number;
+}
+
+// Para clientes (Customers)
+export interface Customer {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  visits: number;
+  totalSpent: number;
+  lastVisit?: string;
+  notes?: string;
 }
 
 // Para reportes y estadísticas
@@ -272,7 +289,9 @@ export type ViewState =
   | 'INVENTORY' 
   | 'REPORTS' 
   | 'STAFF' 
-  | 'APPOINTMENTS';
+  | 'APPOINTMENTS'
+  | 'PERSONAL'
+  | 'CUSTOMERS';
 
 export interface Notification {
   id: string;

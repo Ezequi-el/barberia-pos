@@ -26,7 +26,11 @@ const defaultForm = {
     service: '',
 };
 
-const Appointments: React.FC = () => {
+interface AppointmentsProps {
+  onBack: () => void;
+}
+
+const Appointments: React.FC<AppointmentsProps> = ({ onBack }) => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [showNewModal, setShowNewModal] = useState(false);
@@ -79,9 +83,15 @@ const Appointments: React.FC = () => {
         const phoneErr = validatePhone(form.phone);
         if (phoneErr) { alert(phoneErr); return; }
 
+        const dateStr = selectedDate.toISOString().split('T')[0];
+        const citaDateTime = new Date(`${dateStr}T${form.time}`);
+        if (citaDateTime < new Date()) {
+            alert('No puedes agendar en una fecha/hora que ya pasó');
+            return;
+        }
+
         setSaving(true);
         try {
-            const dateStr = selectedDate.toISOString().split('T')[0];
             await createAppointment({
                 clientName: form.clientName,
                 date: dateStr,
@@ -126,6 +136,11 @@ const Appointments: React.FC = () => {
 
     // ─── Edit ────────────────────────────────────────────────────────────────
     const handleOpenEdit = (apt: Appointment) => {
+        const aptDateTime = new Date(`${apt.date}T${apt.time}`);
+        if (aptDateTime < new Date()) {
+            alert('No puedes modificar citas que ya pasaron');
+            return;
+        }
         setEditingApt({ ...apt });
         setShowEditModal(true);
     };
@@ -133,6 +148,13 @@ const Appointments: React.FC = () => {
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingApt) return;
+
+        const citaDateTime = new Date(`${editingApt.date}T${editingApt.time}`);
+        if (citaDateTime < new Date()) {
+            alert('No puedes agendar en una fecha/hora que ya pasó');
+            return;
+        }
+
         setSaving(true);
         try {
             await updateAppointment(editingApt.id, {
@@ -178,13 +200,29 @@ const Appointments: React.FC = () => {
 
     const selectedDateAppointments = getAppointmentsForDay(selectedDate.getDate());
 
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+    const isPast = (apt: Appointment): boolean => {
+        return new Date(`${apt.date}T${apt.time}`) < new Date();
+    };
+
+    // Computed values for the new appointment form
+    const todayStr = new Date().toISOString().split('T')[0];
+    const formDateStr = selectedDate.toISOString().split('T')[0];
+    const now = new Date();
+    const minTime = formDateStr === todayStr
+        ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        : '00:00';
+
     // ─── Status badge ─────────────────────────────────────────────────────────
-    const statusBadge = (status: string) => {
-        if (status === 'cancelled') return (
+    const statusBadge = (apt: Appointment) => {
+        if (apt.status === 'cancelled') return (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-bold uppercase">Cancelada</span>
         );
-        if (status === 'completed') return (
+        if (apt.status === 'completed') return (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold uppercase">Completada</span>
+        );
+        if (isPast(apt)) return (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#334155] text-[#64748b] font-bold uppercase">Pasada</span>
         );
         return (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#e2b808]/20 text-[#e2b808] font-bold uppercase">Programada</span>
@@ -199,9 +237,14 @@ const Appointments: React.FC = () => {
         <div className="min-h-full bg-[#0f172a] flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
-                <div>
-                    <h2 className="text-3xl font-heading font-bold text-[#e2b808] uppercase tracking-wider">Agenda</h2>
-                    <p className="text-[#94a3b8]">Gestión de citas y horarios</p>
+                <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="p-2 hover:bg-[#334155] rounded-full text-[#94a3b8] hover:text-[#f8fafc] transition-colors">
+                        <ChevronLeft size={24} />
+                    </button>
+                    <div>
+                        <h2 className="text-3xl font-heading font-bold text-[#e2b808] uppercase tracking-wider">Agenda</h2>
+                        <p className="text-[#94a3b8]">Gestión de citas y horarios</p>
+                    </div>
                 </div>
                 <Button onClick={() => setShowNewModal(true)} className="gap-2 bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]">
                     <Plus size={18} /> Nueva Cita
@@ -288,10 +331,18 @@ const Appointments: React.FC = () => {
                         ) : (
                             selectedDateAppointments
                                 .sort((a, b) => a.time.localeCompare(b.time))
-                                .map(apt => (
+                                .map(apt => {
+                                    const past = isPast(apt) && apt.status === 'scheduled';
+                                    return (
                                     <div
                                         key={apt.id}
-                                        className={`bg-[#0f172a] border p-4 rounded-lg transition-colors ${apt.status === 'cancelled' ? 'border-rose-900/40 opacity-60' : 'border-[#334155] group hover:border-[#475569]'}`}
+                                        className={`bg-[#0f172a] border p-4 rounded-lg transition-colors ${
+                                            apt.status === 'cancelled'
+                                                ? 'border-rose-900/40 opacity-60'
+                                                : past
+                                                    ? 'border-[#334155] opacity-50'
+                                                    : 'border-[#334155] group hover:border-[#475569]'
+                                        }`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center gap-2 text-[#e2b808] font-mono font-bold">
@@ -299,7 +350,7 @@ const Appointments: React.FC = () => {
                                                 {apt.time}
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                {apt.status !== 'cancelled' && (
+                                                {apt.status !== 'cancelled' && !past && (
                                                     <>
                                                         <button
                                                             onClick={() => handleOpenEdit(apt)}
@@ -328,7 +379,7 @@ const Appointments: React.FC = () => {
                                         </div>
                                         <div className="flex items-center justify-between mb-1">
                                             <h4 className="text-[#f8fafc] font-bold">{apt.clientName}</h4>
-                                            {statusBadge(apt.status)}
+                                            {statusBadge(apt)}
                                         </div>
                                         <div className="flex items-center gap-2 text-sm text-[#94a3b8] mb-1">
                                             <Scissors size={14} />
@@ -341,7 +392,8 @@ const Appointments: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
-                                ))
+                                    );
+                                })
                         )}
                     </div>
                 </div>
@@ -392,6 +444,7 @@ const Appointments: React.FC = () => {
                                     <input
                                         type="date"
                                         required
+                                        min={todayStr}
                                         value={selectedDate.toISOString().split('T')[0]}
                                         onChange={(e) => setSelectedDate(new Date(e.target.value + 'T12:00:00'))}
                                         className={inputClass}
@@ -402,6 +455,7 @@ const Appointments: React.FC = () => {
                                     <input
                                         type="time"
                                         required
+                                        min={minTime}
                                         value={form.time}
                                         onChange={(e) => setForm({ ...form, time: e.target.value })}
                                         className={inputClass}

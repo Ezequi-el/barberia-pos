@@ -17,7 +17,8 @@ import {
   DBVariante,
   DBCita,
   ApiResponse,
-  ValidationResult
+  ValidationResult,
+  Customer
 } from '../types';
 import adminModule from './admin';
 
@@ -420,7 +421,7 @@ export const deleteCatalogItem = async (id: string): Promise<void> => {
 /**
  * Obtiene todas las transacciones
  */
-export const getTransactions = async (limit: number = 100): Promise<Transaction[]> => {
+export const getTransactions = async (limit: number = 100, userId?: string): Promise<Transaction[]> => {
   try {
     if (isDemoMode) {
       console.log('[DEMO] Obteniendo transacciones');
@@ -465,12 +466,18 @@ export const getTransactions = async (limit: number = 100): Promise<Transaction[
     if (!profile) throw new Error('Perfil de usuario no encontrado');
 
     // Obtener pedidos
-    const { data: pedidos, error: pedidosError } = await supabase
+    let query = supabase
       .from('pedidos')
       .select('*')
       .eq('business_id', profile.business_id)
       .order('created_at', { ascending: false })
       .limit(limit);
+      
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data: pedidos, error: pedidosError } = await query;
 
     if (pedidosError) throw pedidosError;
 
@@ -549,69 +556,78 @@ export const createTransaction = async (
 
     if (!profile) throw new Error('Perfil de usuario no encontrado');
 
-    // Preparar DTO para RPC
-    const transactionDTO: CreateTransactionDTO = {
-      user_id: user.id,
-      business_id: profile.business_id,
-      barber: transaction.barber,
-      total: transaction.total,
-      payment_method: transaction.paymentMethod,
-      reference: transaction.reference,
-      items: transaction.items.map(item => ({
-        producto_id: item.id,
-        name: item.name,
-        type: item.type,
-        price: item.price,
-        quantity: item.quantity
-      }))
-    };
-
-    // Validar total calculado vs total enviado
-    const calculatedTotal = transaction.items.reduce(
-      (sum, item) => sum + (item.price * item.quantity), 
-      0
-    );
-
-    if (Math.abs(calculatedTotal - transaction.total) > 0.01) {
-      throw new Error(`El total calculado ($${calculatedTotal}) no coincide con el total enviado ($${transaction.total})`);
-    }
-
-    // Llamar a la función RPC
-    const { data: transactionId, error: rpcError } = await supabase.rpc(
-      'create_complete_transaction',
-      {
-        p_user_id: transactionDTO.user_id,
-        p_business_id: transactionDTO.business_id,
-        p_barber: transactionDTO.barber,
-        p_total: transactionDTO.total,
-        p_payment_method: transactionDTO.payment_method,
-        p_reference: transactionDTO.reference || null,
-        p_items: JSON.stringify(transactionDTO.items)
-      }
-    );
-
-    if (rpcError) throw rpcError;
-
-    if (!transactionId) {
-      throw new Error('No se recibió ID de transacción');
-    }
-
-    // Obtener la transacción creada
+    // 1. Insertar el Pedido principal
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
-      .select('*')
-      .eq('id', transactionId)
+      .insert([{
+        user_id: user.id,
+        business_id: profile.business_id,
+        barber: transaction.barber,
+        total: Number(transaction.total),
+        payment_method: transaction.paymentMethod,
+        reference: transaction.reference || null,
+        customer_id: transaction.customerId || null
+      }])
+      .select()
       .single();
 
-    if (pedidoError) throw pedidoError;
+    if (pedidoError) {
+      console.error('Error insertando pedido:', pedidoError);
+      throw pedidoError;
+    }
 
-    // Obtener variantes
-    const { data: variantes, error: variantesError } = await supabase
-      .from('variantes')
-      .select('*')
-      .eq('pedido_id', transactionId);
+    const transactionId = pedido.id;
+    const insertedVariantes = [];
 
-    if (variantesError) throw variantesError;
+    // 2. Insertar variantes individualmente dentro de un for loop
+    for (const item of transaction.items) {
+      const varData = {
+        pedido_id: transactionId,
+        producto_id: item.id,
+        business_id: profile.business_id,
+        name: item.name,
+        type: item.type,
+        price: Number(item.price),
+        quantity: Number(item.quantity),
+        subtotal: Number(item.price * item.quantity)
+      };
+
+      const { data: insertedVar, error: varError } = await supabase
+        .from('variantes')
+        .insert([varData])
+        .select()
+        .single();
+
+      if (varError) {
+        console.error(`Error al insertar variante [${item.name}]:`, varError, 'Data:', varData);
+      } else {
+        insertedVariantes.push(insertedVar);
+      }
+
+      // Deducción de stock (Solo productos)
+      if (item.type === 'PRODUCT' && item.quantity > 0) {
+        try {
+          // Obtener stock actual
+          const { data: prodData } = await supabase
+            .from('catalogo')
+            .select('stock')
+            .eq('id', item.id)
+            .single();
+            
+          if (prodData && prodData.stock) {
+            const newStock = Math.max(0, prodData.stock - item.quantity);
+            await supabase
+              .from('catalogo')
+              .update({ stock: newStock })
+              .eq('id', item.id);
+          }
+        } catch (stockError) {
+          console.error(`Error deduciendo stock para [${item.name}]:`, stockError);
+        }
+      }
+    }
+
+    const variantes = insertedVariantes;
 
     // Registrar auditoría
     await adminModule.logAuditEvent({
@@ -1070,7 +1086,312 @@ export const addBarber = async (barber: Omit<BarberSession, 'id'>): Promise<Barb
 };
 
 // ============================================================================
-// 7. EXPORTACIÓN
+// 7. BARBEROS (PERSONAL)
+// ============================================================================
+
+export interface Barbero {
+  id: string;
+  nombre: string;
+  numero_silla?: number;
+  fecha_nacimiento?: string;
+  fecha_ingreso?: string;
+  activo?: boolean;
+  business_id: string;
+  user_id?: string;
+  email?: string; // Se guarda en barberos para mostrar en el frontend
+}
+
+const getBusinessId = async (): Promise<string> => {
+  if (!supabase) throw new Error('Supabase not initialized');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User not authenticated');
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('business_id')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) throw new Error('Profile not found');
+  return profile.business_id;
+};
+
+export const getBarberos = async (): Promise<Barbero[]> => {
+  if (isDemoMode) {
+    return [];
+  }
+  if (!supabase) throw new Error('Supabase not initialized');
+  const business_id = await getBusinessId();
+
+  const { data, error } = await supabase
+    .from('barberos')
+    .select('*')
+    .eq('business_id', business_id);
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const createBarbero = async (
+  barbero: { nombre: string; numero_silla?: number; fecha_nacimiento?: string; fecha_ingreso?: string; email: string; password: string },
+  autoConfirmEmail: boolean = false
+): Promise<{ barbero: Barbero; emailConfirmed: boolean }> => {
+  if (isDemoMode) {
+    return {
+      barbero: {
+        id: 'demo-' + Date.now(),
+        nombre: barbero.nombre,
+        numero_silla: barbero.numero_silla,
+        fecha_nacimiento: barbero.fecha_nacimiento,
+        fecha_ingreso: barbero.fecha_ingreso,
+        business_id: 'demo-business-001',
+      },
+      emailConfirmed: true,
+    };
+  }
+
+  if (!supabase) throw new Error('Supabase not initialized');
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const business_id = await getBusinessId();
+
+  // 1. Crear usuario en Supabase Auth usando cliente temporal para no afectar la sesión actual
+  const { createClient } = await import('@supabase/supabase-js');
+  const tempClient = createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_ANON_KEY,
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+  );
+  
+  const { data: newAuthUser, error: authError } = await tempClient.auth.signUp({
+    email: barbero.email,
+    password: barbero.password,
+    options: {
+      data: { full_name: barbero.nombre }
+    }
+  });
+
+  if (authError) throw authError;
+  if (!newAuthUser.user) throw new Error('No se pudo crear el usuario del barbero.');
+
+  // Auto-confirmación si está en dev
+  if (autoConfirmEmail && supabase.auth.admin) {
+    try {
+      await supabase.auth.admin.updateUserById(newAuthUser.user.id, { email_confirm: true });
+    } catch (e) {
+      console.warn("Omisión silenciosa: no se pudo auto-confirmar", e);
+    }
+  }
+
+  // 2. Crear profile con el business_id del owner
+  // Como estamos creando otro usuario, su profile se debe crear también
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: newAuthUser.user.id,
+    business_id,
+    role: 'barber',
+    full_name: barbero.nombre,
+  });
+
+  if (profileError) throw profileError;
+
+  // 3. Insertar en tabla barberos
+  const { data, error } = await supabase
+    .from('barberos')
+    .insert([{
+      nombre: barbero.nombre,
+      fecha_nacimiento: barbero.fecha_nacimiento,
+      fecha_ingreso: barbero.fecha_ingreso,
+      email: barbero.email,
+      business_id,
+      user_id: newAuthUser.user.id,
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  
+  // Registrar auditoría si es posible
+  try {
+    const adminModule = await import('./admin');
+    await adminModule.default.logAuditEvent({
+      business_id,
+      user_id: user.id,
+      action: 'BARBERO_CREATED',
+      details: { barbero_id: data.id, nombre: barbero.nombre }
+    });
+  } catch (e) { console.error('Error logging audit', e); }
+  
+  return { barbero: data, emailConfirmed: (newAuthUser.user.identities?.length ?? 0) > 0 && !!newAuthUser.user.confirmed_at };
+};
+
+
+export const updateBarbero = async (id: string, updates: Partial<Barbero>): Promise<void> => {
+  if (isDemoMode) return;
+  if (!supabase) throw new Error('Supabase not initialized');
+  const { nombre, numero_silla, fecha_nacimiento, fecha_ingreso } = updates;
+  const { error } = await supabase
+    .from('barberos')
+    .update({ nombre, numero_silla, fecha_nacimiento, fecha_ingreso })
+    .eq('id', id);
+  if (error) throw error;
+};
+
+export const updateBarberoCompleto = async (
+  id: string,
+  updates: Partial<Barbero>,
+  newPassword?: string
+): Promise<void> => {
+  if (isDemoMode) return;
+  if (!supabase) throw new Error('Supabase not initialized');
+
+  // Obtener user_id actual
+  const { data: barbero } = await supabase
+    .from('barberos')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  const { nombre, numero_silla, fecha_nacimiento, fecha_ingreso, activo } = updates;
+  
+  // 1. Actualizar tabla barberos
+  const { error: errorBarbero } = await supabase
+    .from('barberos')
+    .update({ nombre, numero_silla, fecha_nacimiento, fecha_ingreso, activo })
+    .eq('id', id);
+    
+  if (errorBarbero) throw errorBarbero;
+
+  if (barbero?.user_id) {
+    // 2. Actualizar activo en profiles si viene en los campos
+    if (activo !== undefined) {
+      await supabase.from('profiles').update({ activo }).eq('id', barbero.user_id);
+    }
+    
+    // 3. Cambiar contraseña: sin service_role key en el front, no se puede alterar la contraseña de otro
+    if (newPassword) {
+      console.warn("Cambio de contraseña desde el admin no soportado sin service_role temporalmente. El barbero debe iniciar sesión para usar updateUser o debe configurar un backend/Edge Function.");
+    }
+  }
+};
+
+export const deleteBarbero = async (id: string): Promise<void> => {
+  if (isDemoMode) return;
+  if (!supabase) throw new Error('Supabase not initialized');
+
+  // Obtener user_id antes de borrar
+  const { data: barbero } = await supabase
+    .from('barberos').select('user_id').eq('id', id).single();
+
+  // Borrar de tabla barberos
+  const { error } = await supabase.from('barberos').delete().eq('id', id);
+  if (error) throw error;
+
+  // Borrar profile 
+  if (barbero?.user_id) {
+    await supabase.from('profiles').delete().eq('id', barbero.user_id);
+    console.warn("No se puede borrar el usuario en Supabase Auth sin service_role. Queda inactivo/huérfano.");
+  }
+};
+
+export const toggleBarberoStatus = async (id: string, activo: boolean): Promise<void> => {
+  if (isDemoMode) return;
+  if (!supabase) throw new Error('Supabase not initialized');
+
+  // Actualizar tabla barberos
+  const { data: barbero, error: barberoError } = await supabase
+    .from('barberos')
+    .update({ activo })
+    .eq('id', id)
+    .select('user_id')
+    .single();
+
+  if (barberoError) throw barberoError;
+
+  // Actualizar profile
+  if (barbero?.user_id) {
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ activo })
+      .eq('id', barbero.user_id);
+    
+    if (profileError) throw profileError;
+  }
+};
+
+// ============================================================================
+// 8. CUSTOMERS (CLIENTES)
+// ============================================================================
+
+export const getCustomers = async (): Promise<Customer[]> => {
+  if (isDemoMode) {
+    return [];
+  }
+  if (!supabase) throw new Error('Supabase not initialized');
+  const business_id = await getBusinessId();
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('business_id', business_id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map((c: any) => ({
+    id: c.id,
+    name: c.name,
+    phone: c.phone,
+    email: c.email,
+    visits: c.visits || 0,
+    totalSpent: parseFloat(c.total_spent || 0) || 0,
+    lastVisit: c.last_visit,
+    notes: c.notes,
+  }));
+};
+
+export const createCustomer = async (customer: Omit<Customer, 'id'>): Promise<Customer> => {
+  if (isDemoMode) {
+    return { ...customer, id: 'demo-' + Date.now() };
+  }
+  if (!supabase) throw new Error('Supabase not initialized');
+  const business_id = await getBusinessId();
+
+  const { data, error } = await supabase
+    .from('customers')
+    .insert([{ business_id, name: customer.name, phone: customer.phone, email: customer.email, visits: customer.visits, total_spent: customer.totalSpent, notes: customer.notes }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { id: data.id, name: data.name, phone: data.phone, email: data.email, visits: data.visits, totalSpent: parseFloat(data.total_spent), lastVisit: data.last_visit, notes: data.notes };
+};
+
+export const updateCustomer = async (id: string, updates: Partial<Customer>): Promise<void> => {
+  if (isDemoMode) {
+    return;
+  }
+  if (!supabase) throw new Error('Supabase not initialized');
+  const dbUpdates: any = {};
+  if (updates.name !== undefined) dbUpdates.name = updates.name;
+  if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+  if (updates.email !== undefined) dbUpdates.email = updates.email;
+  if (updates.visits !== undefined) dbUpdates.visits = updates.visits;
+  if (updates.totalSpent !== undefined) dbUpdates.total_spent = updates.totalSpent;
+  if (updates.lastVisit !== undefined) dbUpdates.last_visit = updates.lastVisit;
+  if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+
+  const { error } = await supabase.from('customers').update(dbUpdates).eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteCustomer = async (id: string): Promise<void> => {
+  if (isDemoMode) return;
+  if (!supabase) throw new Error('Supabase not initialized');
+  const { error } = await supabase.from('customers').delete().eq('id', id);
+  if (error) throw error;
+};
+
+// ============================================================================
+// 9. EXPORTACIÓN
 // ============================================================================
 
 export {

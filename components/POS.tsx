@@ -2,14 +2,15 @@
 // POS COMPONENT - Refactorizado con componentes separados
 // ============================================================================
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   CatalogItem, 
   CartItem, 
   ItemType, 
   PaymentMethod, 
   Transaction,
-  ValidationResult
+  ValidationResult,
+  Customer
 } from '../types';
 import { Barber, SEED_CATALOG } from '../constants';
 import { 
@@ -17,7 +18,9 @@ import {
   Printer, 
   CheckCircle, 
   RotateCcw,
-  Loader2
+  Loader2,
+  User,
+  X
 } from 'lucide-react';
 import Button from './Button';
 import Modal from './Modal';
@@ -32,6 +35,7 @@ import {
 } from '../lib/database';
 import { useToastNotifications } from './Toast';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface POSProps {
   onBack: () => void;
@@ -65,6 +69,17 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [reference, setReference] = useState('');
   const [cashAmount, setCashAmount] = useState('');
+
+  // Selector de cliente
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerSearchRef = useRef<HTMLDivElement>(null);
+
+  // Barberos activos
+  const [activeBarbers, setActiveBarbers] = useState<{id: string, nombre: string, numero_silla?: number}[]>([]);
+  const [barbersLoading, setBarbersLoading] = useState(false);
   
   // Paginación para lazy loading
   const [currentPage, setCurrentPage] = useState(0);
@@ -82,6 +97,18 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   useEffect(() => {
     loadCatalog();
     loadCatalogCount();
+  }, []);
+
+
+  // Cerrar dropdown al click fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerSearchRef.current && !customerSearchRef.current.contains(e.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Cargar catálogo con paginación
@@ -133,6 +160,77 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       loadCatalogCount();
     }
   }, [activeTab]);
+
+  // Cargar TODOS los clientes del negocio (una sola vez al abrir checkout)
+  const loadAllCustomers = async () => {
+    if (!supabase || allCustomers.length > 0) return; // ya cargados
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('business_id')
+        .eq('id', user.id)
+        .single();
+      if (!profile) return;
+      const { data } = await supabase
+        .from('customers')
+        .select('id, name, phone, email, visits, total_spent, last_visit, notes')
+        .eq('business_id', profile.business_id)
+        .order('name', { ascending: true });
+      setAllCustomers((data || []).map((c: any): Customer => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        visits: c.visits ?? 0,
+        totalSpent: c.total_spent ?? 0,
+        lastVisit: c.last_visit,
+        notes: c.notes
+      })));
+    } catch (e) {
+      console.error('Error cargando clientes:', e);
+    }
+  };
+
+  // Cargar barberos activos (una sola vez al abrir checkout)
+  const loadActiveBarbers = async () => {
+    if (!supabase || activeBarbers.length > 0) return;
+    setBarbersLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('business_id')
+        .eq('id', user.id)
+        .single();
+      if (!profile) return;
+      const { data } = await supabase
+        .from('barberos')
+        .select('id, nombre, numero_silla')
+        .eq('business_id', profile.business_id)
+        .eq('activo', true)
+        .order('nombre', { ascending: true });
+        
+      setActiveBarbers(data || []);
+    } catch (e) {
+      console.error('Error cargando barberos:', e);
+    } finally {
+      setBarbersLoading(false);
+    }
+  };
+
+  // Lista filtrada localmente (sin queries adicionales)
+  const filteredCustomers = useMemo(() => {
+    if (!customerQuery.trim()) return allCustomers;
+    const q = customerQuery.toLowerCase();
+    return allCustomers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.phone && c.phone.includes(customerQuery))
+    );
+  }, [allCustomers, customerQuery]);
+
 
   // ============================================================================
   // 3. LÓGICA DEL CARRITO (CON VALIDACIONES)
@@ -306,6 +404,14 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
     setReference('');
     setCashAmount('');
     setLastTransaction(null);
+    // Reset cliente
+    setSelectedCustomer(null);
+    setCustomerQuery('');
+    setShowCustomerDropdown(false);
+    // Cargar clientes (una sola vez)
+    loadAllCustomers();
+    // Cargar barberos
+    loadActiveBarbers();
   };
 
   const handleProcessPayment = async () => {
@@ -321,18 +427,49 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       showWarning(validation.warnings.join(', '), 'Verifica los datos');
     }
 
+    const saleData = {
+      barber: selectedBarber!,
+      items: cart,
+      total: cartTotal,
+      paymentMethod: paymentMethod!,
+      reference: reference.trim() || undefined,
+      customerId: selectedCustomer?.id || undefined,
+    };
+
+    // Modo OFFLINE: guardar en localStorage
+    if (!navigator.onLine) {
+      try {
+        const PENDING_KEY = 'velo_pending_sales';
+        const existing = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+        existing.push({ ...saleData, _savedAt: new Date().toISOString() });
+        localStorage.setItem(PENDING_KEY, JSON.stringify(existing));
+
+        // Simular éxito para UI
+        const mockTransaction = {
+          id: `offline-${Date.now()}`,
+          date: new Date().toISOString(),
+          ...saleData,
+          status: undefined,
+        };
+        setLastTransaction(mockTransaction as any);
+        setCheckoutStep('success');
+        setCart([]);
+        showInfo(
+          'Sin conexión. La venta se guardó localmente y se sincronizará cuando vuelva la conexión.',
+          'Venta guardada offline'
+        );
+      } catch (err) {
+        showError('Error al guardar la venta localmente.', 'Error offline');
+      }
+      return;
+    }
+
     try {
       setProcessing(true);
       showInfo('Procesando transacción...', 'Procesando');
 
       // Crear transacción usando función RPC
-      const transaction = await createTransaction({
-        barber: selectedBarber!,
-        items: cart,
-        total: cartTotal,
-        paymentMethod: paymentMethod!,
-        reference: reference.trim() || undefined
-      });
+      const transaction = await createTransaction(saleData);
 
       // Actualizar catálogo para reflejar stock actualizado
       await loadCatalog(0);
@@ -442,29 +579,124 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       >
         {checkoutStep === 'payment' ? (
           <div className="space-y-6">
+            {/* 0. Cliente (Opcional) */}
+            <div>
+              <label className="block text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-2">
+                0. Cliente (Opcional)
+              </label>
+              <div ref={customerSearchRef} className="relative">
+                {selectedCustomer ? (
+                  /* Cliente seleccionado — chip */
+                  <div className="flex items-center justify-between p-3 border border-[#e2b808]/60 rounded-lg bg-[#e2b808]/10">
+                    <div className="flex items-center gap-2">
+                      <User size={16} className="text-[#e2b808]" />
+                      <div>
+                        <p className="text-sm font-bold text-[#f8fafc]">{selectedCustomer.name}</p>
+                        <p className="text-xs text-[#94a3b8]">
+                          {selectedCustomer.phone && `${selectedCustomer.phone} · `}
+                          {selectedCustomer.visits} visitas · ${selectedCustomer.totalSpent.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); }}
+                      className="text-[#94a3b8] hover:text-rose-400 transition-colors p-1"
+                      aria-label="Quitar cliente"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  /* Sin cliente — input + dropdown */
+                  <>
+                    <div className="relative">
+                      <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#475569]" />
+                      <input
+                        type="text"
+                        placeholder="Buscar cliente o dejar vacío para venta anónima"
+                        value={customerQuery}
+                        onChange={e => setCustomerQuery(e.target.value)}
+                        onFocus={() => setShowCustomerDropdown(true)}
+                        className="w-full pl-8 pr-4 py-2.5 text-sm bg-[#1e293b] border border-[#475569] rounded-lg text-[#f8fafc] placeholder-[#475569] focus:outline-none focus:border-[#e2b808] transition-colors"
+                      />
+                    </div>
+                    {showCustomerDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-[#1e293b] border border-[#334155] rounded-lg shadow-xl overflow-hidden">
+                        {/* Opción: sin cliente */}
+                        <button
+                          onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); setShowCustomerDropdown(false); }}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-[#94a3b8] hover:bg-[#334155] transition-colors border-b border-[#334155]"
+                        >
+                          <User size={14} />
+                          <span>Sin cliente / Venta anónima</span>
+                        </button>
+                        {/* Lista filtrada con scroll */}
+                        <div className="overflow-y-auto" style={{ maxHeight: '264px' }}>
+                          {filteredCustomers.length === 0 ? (
+                            <p className="px-3 py-4 text-sm text-[#475569] text-center">No se encontraron clientes</p>
+                          ) : (
+                            filteredCustomers.map(c => (
+                              <button
+                                key={c.id}
+                                onClick={() => { setSelectedCustomer(c); setCustomerQuery(''); setShowCustomerDropdown(false); }}
+                                className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-[#334155] transition-colors text-left border-b border-[#334155]/50 last:border-0"
+                              >
+                                <div>
+                                  <p className="text-sm font-medium text-[#f8fafc]">{c.name}</p>
+                                  <p className="text-xs text-[#64748b] mt-0.5">
+                                    {c.phone || 'Sin teléfono'} · {c.visits} visitas · ${c.totalSpent.toLocaleString()}
+                                  </p>
+                                </div>
+                                <span className="text-xs text-[#475569] ml-2 shrink-0">
+                                  {c.visits > 0 ? `${c.visits}x` : 'Nuevo'}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
             {/* 1. Select Barber */}
             <div>
               <label className="block text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-2">
                 1. Barbero Responsable
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.values(Barber).map(barber => (
-                  <button
-                    key={barber}
-                    onClick={() => setSelectedBarber(barber)}
-                    className={`
-                      p-4 border rounded-lg font-bold text-sm uppercase transition-all
-                      min-h-[44px] flex items-center justify-center
-                      ${selectedBarber === barber
-                        ? 'border-[#e2b808] bg-[#e2b808]/10 text-[#e2b808]'
-                        : 'border-[#475569] bg-[#1e293b] text-[#94a3b8] hover:border-[#64748b]'
-                      }
-                    `}
-                  >
-                    {barber}
-                  </button>
-                ))}
-              </div>
+              
+              {barbersLoading ? (
+                <div className="flex justify-center p-8">
+                  <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : activeBarbers.length === 0 ? (
+                <div className="p-4 border border-rose-500/30 bg-rose-500/10 rounded-lg text-center">
+                  <p className="text-sm text-rose-400">No hay barberos activos. Registra barberos en Gestión de Personal.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {activeBarbers.map(barber => (
+                    <button
+                      key={barber.id}
+                      onClick={() => setSelectedBarber(barber.nombre)}
+                      className={`
+                        p-3 border rounded-lg transition-all flex flex-col items-center justify-center min-h-[56px]
+                        ${selectedBarber === barber.nombre
+                          ? 'border-[#e2b808] bg-[#e2b808]/10 text-[#e2b808]'
+                          : 'border-[#475569] bg-[#1e293b] text-[#94a3b8] hover:border-[#64748b]'
+                        }
+                      `}
+                    >
+                      <span className="font-bold text-sm uppercase">{barber.nombre}</span>
+                      {barber.numero_silla && (
+                        <span className="text-xs opacity-70 mt-0.5 normal-case font-medium">Silla #{barber.numero_silla}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 2. Payment Method */}

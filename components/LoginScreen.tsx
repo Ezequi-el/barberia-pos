@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
-import { LogIn, Mail, Lock, User, AlertCircle } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import Button from './Button';
-import Input from './Input';
 
 interface LoginScreenProps {
-  onToggleRegister: () => void;
+  onToggleRegister: () => void; // Se mantiene por si se invoca desde App.tsx pero el UI no lo mostrará
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onToggleRegister }) => {
+const LoginScreen: React.FC<LoginScreenProps> = () => {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,88 +22,95 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onToggleRegister }) => {
     const { error } = await signIn(email, password);
     
     if (error) {
-      setError(error.message);
+      if (error.message.includes('Email not confirmed')) {
+        setError('Debes confirmar tu correo electrónico. Revisa tu bandeja de entrada.');
+      } else {
+        setError(error.message);
+      }
     }
     
     setLoading(false);
   };
 
   return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-center relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-600 rounded-full blur-[128px]"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-zinc-800 rounded-full blur-[128px]"></div>
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0f172a] text-center relative overflow-hidden px-6">
+      {/* Luz dorada difusa en la esquina superior izquierda al 5-8% de opacidad */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        <div className="absolute -top-32 -left-32 w-[35rem] h-[35rem] bg-[#e2b808] rounded-full blur-[160px] opacity-[0.06]"></div>
       </div>
 
-      <div className="z-10 w-full max-w-md px-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-        <div className="w-20 h-20 mx-auto rounded-full border-2 border-amber-500 flex items-center justify-center mb-6 bg-zinc-950 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
-          <LogIn className="text-amber-500 w-10 h-10" />
-        </div>
+      <div className="z-10 w-full max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
         
-        <div className="space-y-2 mb-8">
-          <h1 className="text-5xl font-heading font-bold text-white tracking-tighter">
-            NERON
+        {/* Logo Text */}
+        <div className="space-y-0 text-center mb-14 flex flex-col items-center">
+          <h1 className="text-7xl font-heading font-extrabold text-[#f8fafc] tracking-widest uppercase">
+            VELO
           </h1>
-          <p className="text-lg text-amber-500 font-heading tracking-[0.3em] uppercase">
-            Iniciar Sesión
+          <div className="w-16 h-[2px] bg-[#e2b808] my-3"></div>
+          <p className="text-xl text-[#e2b808] font-heading tracking-[0.5em] uppercase font-light">
+            POS
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5 text-left">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center gap-2 text-red-500 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <div className="bg-red-950/40 border border-red-500/30 rounded-lg p-3.5 flex items-center gap-3 text-red-400 text-sm font-medium">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-            <Input
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest pl-1">
+              Usuario o Correo
+            </label>
+            <input
               type="email"
-              placeholder="Correo electrónico"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="pl-12"
+              className="w-full bg-zinc-900/40 border border-zinc-800 rounded-lg px-5 py-4 text-white placeholder-zinc-700 focus:border-[#e2b808] focus:ring-1 focus:ring-[#e2b808]/50 focus:outline-none transition-all"
+              placeholder="admin@velopos.com"
             />
           </div>
 
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-            <Input
-              type="password"
-              placeholder="Contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="pl-12"
-            />
+          <div className="space-y-2 relative">
+            <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest pl-1">
+              Contraseña
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full bg-zinc-900/40 border border-zinc-800 rounded-lg pl-5 pr-14 py-4 text-white placeholder-zinc-700 focus:border-[#e2b808] focus:ring-1 focus:ring-[#e2b808]/50 focus:outline-none transition-all"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
-          <Button
-            type="submit"
-            fullWidth
-            disabled={loading}
-            className="bg-amber-500 hover:bg-amber-400 text-black font-bold tracking-widest border-0 py-3"
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </Button>
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] font-extrabold text-sm tracking-[0.2em] uppercase rounded-lg py-4 transition-all duration-300 hover:shadow-[0_0_20px_rgba(226,184,8,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            >
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </button>
+          </div>
         </form>
 
-        <div className="mt-6 text-zinc-400 text-sm">
-          ¿No tienes cuenta?{' '}
-          <button
-            onClick={onToggleRegister}
-            className="text-amber-500 hover:text-amber-400 font-semibold transition-colors"
-          >
-            Regístrate aquí
-          </button>
-        </div>
-
-        <p className="mt-8 text-zinc-600 text-xs uppercase tracking-widest">
-          Sistema de Gestión Premium v1.0
+        <p className="mt-14 text-zinc-600/80 text-xs font-medium tracking-widest uppercase">
+          © 2026 Velo POS
         </p>
       </div>
     </div>

@@ -22,7 +22,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onEnter }) => {
         
         <div className="space-y-2">
           <h1 className="text-6xl md:text-8xl font-heading font-bold text-white tracking-tighter">
-            NERON
+            VELO POS
           </h1>
           <p className="text-xl text-amber-500 font-heading tracking-[0.5em] uppercase">
             Barbershop POS

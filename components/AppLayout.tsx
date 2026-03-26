@@ -8,8 +8,9 @@ import Dashboard from './Dashboard';
 import POS from './POS';
 import Inventory from './Inventory';
 import Reports from './Reports';
-import Staff from './Staff';
 import Appointments from './Appointments';
+import Personal from './Personal';
+import Customers from './Customers';
 
 interface AppLayoutProps {
   currentView: ViewState;
@@ -45,7 +46,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       if (!previousView || !isTransitioning) return '';
       
       // Determinar dirección de la animación basada en el orden de las vistas
-      const viewsOrder: ViewState[] = ['DASHBOARD', 'POS', 'INVENTORY', 'REPORTS', 'STAFF', 'APPOINTMENTS'];
+      const viewsOrder: ViewState[] = ['DASHBOARD', 'POS', 'INVENTORY', 'REPORTS', 'APPOINTMENTS', 'PERSONAL', 'CUSTOMERS'];
       const currentIndex = viewsOrder.indexOf(currentView);
       const previousIndex = viewsOrder.indexOf(previousView);
       
@@ -74,7 +75,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       case 'INVENTORY':
         return (
           <div className={`w-full h-full ${animationClass}`}>
-            <Inventory />
+            <Inventory onBack={() => handleNavigation('DASHBOARD')} />
           </div>
         );
       case 'REPORTS':
@@ -83,16 +84,22 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             <Reports onBack={() => handleNavigation('DASHBOARD')} />
           </div>
         );
-      case 'STAFF':
-        return (
-          <div className={`w-full h-full ${animationClass}`}>
-            <Staff onBack={() => handleNavigation('DASHBOARD')} />
-          </div>
-        );
       case 'APPOINTMENTS':
         return (
           <div className={`w-full h-full ${animationClass}`}>
-            <Appointments />
+            <Appointments onBack={() => handleNavigation('DASHBOARD')} />
+          </div>
+        );
+      case 'PERSONAL':
+        return (
+          <div className={`w-full h-full ${animationClass}`}>
+            <Personal onBack={() => handleNavigation('DASHBOARD')} />
+          </div>
+        );
+      case 'CUSTOMERS':
+        return (
+          <div className={`w-full h-full ${animationClass}`}>
+            <Customers onBack={() => handleNavigation('DASHBOARD')} />
           </div>
         );
       default:

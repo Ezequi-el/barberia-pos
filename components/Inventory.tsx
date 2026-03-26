@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { CatalogItem, ItemType } from '../types';
-import { Plus, Search, Edit2, Trash2, PackageSearch } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, PackageSearch, ChevronLeft } from 'lucide-react';
 import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
 import { getCatalogItems, addCatalogItem, updateCatalogItem, deleteCatalogItem } from '../lib/database';
 import { useAuth } from '../contexts/AuthContext';
 
-const Inventory: React.FC = () => {
+interface InventoryProps {
+  onBack: () => void;
+}
+
+const Inventory: React.FC<InventoryProps> = ({ onBack }) => {
   const { profile } = useAuth();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterType, setFilterType] = useState<ItemType | 'ALL'>('ALL');
   const [saving, setSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
 
@@ -54,10 +59,25 @@ const Inventory: React.FC = () => {
     }
   };
 
-  const filteredItems = items.filter(i => 
-    i.name.toLowerCase().includes(search.toLowerCase()) || 
-    i.brand?.toLowerCase().includes(search.toLowerCase())
-  );
+  const countAll = items.length;
+  const countServices = items.filter(i => i.type === ItemType.SERVICE).length;
+  const countProducts = items.filter(i => i.type === ItemType.PRODUCT).length;
+
+  const filteredItems = items.filter(i => {
+    const matchesSearch = i.name.toLowerCase().includes(search.toLowerCase()) || 
+                          i.brand?.toLowerCase().includes(search.toLowerCase());
+    const matchesType = filterType === 'ALL' || i.type === filterType;
+    return matchesSearch && matchesType;
+  }).sort((a, b) => {
+    const aLow = a.type === ItemType.PRODUCT && a.stock !== undefined && a.stock <= 5;
+    const bLow = b.type === ItemType.PRODUCT && b.stock !== undefined && b.stock <= 5;
+    
+    if (aLow && !bLow) return -1;
+    if (!aLow && bLow) return 1;
+    if (aLow && bLow) return (a.stock || 0) - (b.stock || 0); // Sort lower stock first
+    
+    return a.name.localeCompare(b.name);
+  });
 
   const handleSave = async () => {
     if (!newItem.name || !newItem.price) {
@@ -150,6 +170,9 @@ const Inventory: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-[#334155] rounded-full text-[#94a3b8] hover:text-[#f8fafc] transition-colors">
+            <ChevronLeft size={24} />
+          </button>
           <div>
             <h2 className="text-3xl font-heading font-bold text-[#e2b808] uppercase tracking-wider">Gestión del Catálogo</h2>
             <p className="text-[#94a3b8]">Administra servicios y stock de productos</p>
@@ -163,13 +186,47 @@ const Inventory: React.FC = () => {
         </Button>
       </div>
 
-      {/* Toolbar */}
+      {/* Tabs Filter */}
+      <div className="flex gap-3 mb-6">
+        <button
+          onClick={() => setFilterType('ALL')}
+          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            filterType === 'ALL'
+              ? 'bg-[#e2b808] border-[#e2b808] text-[#0f172a]'
+              : 'bg-transparent border-[#334155] text-[#94a3b8] hover:border-[#64748b] hover:text-[#f8fafc]'
+          }`}
+        >
+          Todos ({countAll})
+        </button>
+        <button
+          onClick={() => setFilterType(ItemType.SERVICE)}
+          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            filterType === ItemType.SERVICE
+              ? 'bg-[#e2b808] border-[#e2b808] text-[#0f172a]'
+              : 'bg-transparent border-[#334155] text-[#94a3b8] hover:border-[#64748b] hover:text-[#f8fafc]'
+          }`}
+        >
+          Servicios ({countServices})
+        </button>
+        <button
+          onClick={() => setFilterType(ItemType.PRODUCT)}
+          className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            filterType === ItemType.PRODUCT
+              ? 'bg-[#e2b808] border-[#e2b808] text-[#0f172a]'
+              : 'bg-transparent border-[#334155] text-[#94a3b8] hover:border-[#64748b] hover:text-[#f8fafc]'
+          }`}
+        >
+          Productos ({countProducts})
+        </button>
+      </div>
+
+      {/* Toolbar Search */}
       <div className="mb-6 flex gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#64748b]" size={18} />
           <input
             type="text"
-            placeholder="Buscar en catálogo..."
+            placeholder="Buscar en el catálogo..."
             className="w-full bg-[#1e293b] border border-[#334155] rounded-lg pl-10 pr-4 py-3 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -190,8 +247,14 @@ const Inventory: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#334155]">
-            {filteredItems.map(item => (
-              <tr key={item.id} className="hover:bg-[#334155]/50 transition-colors">
+            {filteredItems.map(item => {
+              const stock = item.stock ?? 0;
+              const isProduct = item.type === ItemType.PRODUCT;
+              const isLowStock = isProduct && stock <= 5 && stock > 0;
+              const isOutOfStock = isProduct && stock <= 0;
+              
+              return (
+              <tr key={item.id} className={`transition-colors ${isOutOfStock ? 'opacity-40 bg-rose-950/10' : 'hover:bg-[#334155]/50'}`}>
                 <td className="p-4 font-medium text-[#f8fafc]">{item.name}</td>
                 <td className="p-4">
                   <span className={`text-xs px-2 py-1 rounded-full uppercase tracking-wider font-bold ${item.type === ItemType.SERVICE ? 'bg-[#e2b808]/10 text-[#e2b808]' : 'bg-[#38bdf8]/10 text-[#38bdf8]'}`}>
@@ -201,10 +264,14 @@ const Inventory: React.FC = () => {
                 </td>
                 <td className="p-4 text-right text-emerald-400 font-bold">${item.price}</td>
                 <td className="p-4 text-center">
-                  {item.type === ItemType.PRODUCT ? (
-                     <span className={`font-bold ${item.stock! <= 5 ? 'text-rose-500' : 'text-[#f8fafc]'}`}>
-                        {item.stock} un.
-                     </span>
+                  {isProduct ? (
+                     <div className="flex flex-col items-center justify-center gap-1">
+                       <span className={`font-bold ${stock <= 5 ? 'text-rose-500' : 'text-[#f8fafc]'}`}>
+                          {stock} un.
+                       </span>
+                       {isLowStock && <span className="text-[10px] bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider border border-rose-500/20">Stock Bajo</span>}
+                       {isOutOfStock && <span className="text-[10px] bg-rose-500/20 text-rose-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider border border-rose-500/30">Agotado</span>}
+                     </div>
                   ) : <span className="text-[#64748b]">-</span>}
                 </td>
                 <td className="p-4">
@@ -226,7 +293,7 @@ const Inventory: React.FC = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
         {filteredItems.length === 0 && (
