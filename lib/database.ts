@@ -2,7 +2,7 @@
 // DATABASE MODULE - Usando funciones RPC y esquema español de base de datos
 // ============================================================================
 
-import { supabase } from './supabase';
+import { supabase, supabaseAdmin } from './supabase';
 import { 
   CatalogItem, 
   CartItem, 
@@ -1155,33 +1155,18 @@ export const createBarbero = async (
   if (!user) throw new Error('Not authenticated');
   const business_id = await getBusinessId();
 
-  // 1. Crear usuario en Supabase Auth usando cliente temporal para no afectar la sesión actual
-  const { createClient } = await import('@supabase/supabase-js');
-  const tempClient = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-  );
-  
-  const { data: newAuthUser, error: authError } = await tempClient.auth.signUp({
+  // 1. Crear usuario en Supabase Auth usando supabaseAdmin
+  if (!supabaseAdmin) throw new Error('supabaseAdmin no está disponible en este entorno.');
+
+  const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: barbero.email,
     password: barbero.password,
-    options: {
-      data: { full_name: barbero.nombre }
-    }
+    email_confirm: true,
+    user_metadata: { full_name: barbero.nombre }
   });
 
   if (authError) throw authError;
   if (!newAuthUser.user) throw new Error('No se pudo crear el usuario del barbero.');
-
-  // Auto-confirmación si está en dev
-  if (autoConfirmEmail && supabase.auth.admin) {
-    try {
-      await supabase.auth.admin.updateUserById(newAuthUser.user.id, { email_confirm: true });
-    } catch (e) {
-      console.warn("Omisión silenciosa: no se pudo auto-confirmar", e);
-    }
-  }
 
   // 2. Crear profile con el business_id del owner
   // Como estamos creando otro usuario, su profile se debe crear también

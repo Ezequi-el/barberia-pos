@@ -4,6 +4,7 @@ import Button from './Button';
 import Modal from './Modal';
 import Input from './Input';
 import { getBarberos, createBarbero, updateBarberoCompleto, deleteBarbero, toggleBarberoStatus, Barbero } from '../lib/database';
+import { supabase } from '../lib/supabase';
 
 interface PersonalProps {
   onBack: () => void;
@@ -35,6 +36,11 @@ const getInitials = (name: string) => {
   }
   return name.substring(0, 2).toUpperCase();
 };
+
+function generarPasswordTemporal(): string {
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `Velo#${num}`;
+}
 
 const Personal: React.FC<PersonalProps> = ({ onBack }) => {
   const [barberos, setBarberos] = useState<Barbero[]>([]);
@@ -93,21 +99,19 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
   );
 
   const handleCreate = async () => {
-    if (!newBarbero.nombre || !newBarbero.email || !newBarbero.password) {
-      alert('Nombre, email y contraseña son obligatorios');
+    if (!newBarbero.nombre || !newBarbero.email) {
+      alert('Nombre y correo electrónico son obligatorios');
       return;
     }
-    if (newBarbero.password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
+
+    const passwordTemporal = generarPasswordTemporal();
 
     try {
       setSaving(true);
       const { barbero, emailConfirmed } = await createBarbero({
         nombre: newBarbero.nombre,
         email: newBarbero.email,
-        password: newBarbero.password,
+        password: passwordTemporal,
         numero_silla: newBarbero.numero_silla ? parseInt(newBarbero.numero_silla) : undefined,
         fecha_nacimiento: newBarbero.fecha_nacimiento || undefined,
         fecha_ingreso: newBarbero.fecha_ingreso || undefined,
@@ -120,6 +124,22 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
         setPendingConfirmIds(updated);
       }
 
+      try {
+        if (supabase) {
+          await supabase.functions.invoke('send-welcome-email', {
+            body: {
+              nombre: newBarbero.nombre,
+              negocio: 'Velo POS',
+              email: newBarbero.email,
+              password: passwordTemporal,
+            }
+          });
+        }
+      } catch (e) {
+        // Fallar en silencio visual para no bloquear
+        console.warn('Barbero creado pero el correo no se pudo enviar', e);
+      }
+
       await loadBarberos();
       setIsAddModalOpen(false);
       setNewBarbero({ nombre: '', email: '', password: '', numero_silla: '', fecha_nacimiento: '', fecha_ingreso: '' });
@@ -128,7 +148,7 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
       setSuccessInfo({
         nombre: newBarbero.nombre,
         email: newBarbero.email,
-        password: newBarbero.password,
+        password: passwordTemporal,
         emailConfirmed,
       });
 
@@ -353,13 +373,6 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
             value={newBarbero.email}
             onChange={e => setNewBarbero({ ...newBarbero, email: e.target.value })}
             placeholder="barbero@velopos.com"
-          />
-          <Input
-            label="Contraseña inicial *"
-            type="password"
-            value={newBarbero.password}
-            onChange={e => setNewBarbero({ ...newBarbero, password: e.target.value })}
-            placeholder="Mínimo 6 caracteres"
           />
           <div className="grid grid-cols-2 gap-4">
             <Input

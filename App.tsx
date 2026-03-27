@@ -13,11 +13,12 @@ import Customers from './components/Customers';
 import Appointments from './components/Appointments';
 import Personal from './components/Personal';
 import ChangelogModal from './components/ChangelogModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import { initTheme } from './components/ThemeToggle';
 import { ViewState } from './types';
 
 const AppContent: React.FC = () => {
-  const { user, loading, isOwner, signOut } = useAuth();
+  const { user, loading, isOwner, signOut, mustChangePassword } = useAuth();
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
@@ -42,6 +43,11 @@ const AppContent: React.FC = () => {
       return <RegisterScreen onToggleLogin={() => setAuthMode('login')} />;
     }
     return <LoginScreen onToggleRegister={() => setAuthMode('register')} />;
+  }
+
+  // Si debe cambiar password forzosamente, bloquear todo
+  if (mustChangePassword) {
+    return <ChangePasswordModal />;
   }
 
   // Si es owner, renderizar el AppLayout con la barra de navegación y animaciones

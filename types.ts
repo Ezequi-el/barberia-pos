@@ -87,6 +87,7 @@ export interface DBProfile {
   role: 'owner' | 'barber';
   full_name: string | null;
   activo?: boolean;
+  password_changed?: boolean;
 }
 
 // Tabla: citas

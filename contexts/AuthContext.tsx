@@ -11,6 +11,7 @@ interface AuthContextType {
   loading: boolean;
   isOwner: boolean;
   isDemoMode: boolean;
+  mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -200,6 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     isOwner: profile?.role === 'owner',
     isDemoMode,
+    mustChangePassword: profile?.role === 'barber' && profile?.password_changed === false,
     signIn,
     signUp,
     signOut,
