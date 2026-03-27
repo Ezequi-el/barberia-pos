@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -127,18 +128,54 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  try {
-    const { nombre, negocio, email, password } = await req.json();
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    if (!nombre || !negocio || !email || !password) {
+  try {
+    const { nombre, negocio, email, password, business_id, create_user = false } = await req.json();
+
+    if (!nombre || (!negocio && !create_user) || !email || !password) {
       return new Response(
         JSON.stringify({ error: "Faltan campos requeridos" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    let userId = "";
+
+    // 1. Opcionalmente crear el usuario en Supabase Auth
+    if (create_user) {
+      if (!business_id) throw new Error("business_id es requerido para crear un barbero");
+
+      const { data: userData, error: userError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: nombre }
+      });
+
+      if (userError) throw userError;
+      userId = userData.user.id;
+
+      // 2. Crear su perfil automáticamente
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: userId,
+          business_id: business_id,
+          role: "barber",
+          full_name: nombre,
+          activo: true,
+          password_changed: false
+        });
+
+      if (profileError) throw profileError;
+    }
+
+    // 3. Enviar correo usando Gmail API
     const accessToken = await getAccessToken();
-    const htmlContent = buildEmailHTML(nombre, negocio, email, password);
+    const htmlContent = buildEmailHTML(nombre, negocio || 'Velo POS', email, password);
     const fromEmail = Deno.env.get("GMAIL_FROM")!;
 
     const emailLines = [
@@ -170,16 +207,26 @@ serve(async (req) => {
     );
 
     if (!gmailResponse.ok) {
-      const error = await gmailResponse.json();
-      throw new Error(JSON.stringify(error));
+      const errorData = await gmailResponse.json();
+      console.error("Gmail Error:", errorData);
+      // No lanzamos error para no fallar el proceso completo si el usuario se creó pero el mail falló
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          user_id: userId,
+          message: "Usuario creado pero el correo falló al enviarse" 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: "Correo enviado correctamente" }),
+      JSON.stringify({ success: true, user_id: userId, message: "Usuario creado y correo enviado correctamente" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
+    console.error("Error in Edge Function:", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -124,21 +124,8 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
         setPendingConfirmIds(updated);
       }
 
-      try {
-        if (supabase) {
-          await supabase.functions.invoke('send-welcome-email', {
-            body: {
-              nombre: newBarbero.nombre,
-              negocio: 'Velo POS',
-              email: newBarbero.email,
-              password: passwordTemporal,
-            }
-          });
-        }
-      } catch (e) {
-        // Fallar en silencio visual para no bloquear
-        console.warn('Barbero creado pero el correo no se pudo enviar', e);
-      }
+      // El correo y la creación del usuario Auth ahora se manejan dentro de createBarbero vía Edge Function
+
 
       await loadBarberos();
       setIsAddModalOpen(false);

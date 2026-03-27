@@ -2,7 +2,7 @@
 // DATABASE MODULE - Usando funciones RPC y esquema español de base de datos
 // ============================================================================
 
-import { supabase, supabaseAdmin } from './supabase';
+import { supabase } from './supabase';
 import { 
   CatalogItem, 
   CartItem, 
@@ -1151,63 +1151,60 @@ export const createBarbero = async (
   }
 
   if (!supabase) throw new Error('Supabase not initialized');
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
   const business_id = await getBusinessId();
 
-  // 1. Crear usuario en Supabase Auth usando supabaseAdmin
-  if (!supabaseAdmin) throw new Error('supabaseAdmin no está disponible en este entorno.');
-
-  const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email: barbero.email,
-    password: barbero.password,
-    email_confirm: true,
-    user_metadata: { full_name: barbero.nombre }
+  // 1. Crear usuario y perfil a través de la Edge Function (Seguro)
+  const { data: functionData, error: functionError } = await supabase.functions.invoke('send-welcome-email', {
+    body: {
+      nombre: barbero.nombre,
+      negocio: 'Velo POS',
+      email: barbero.email,
+      password: barbero.password,
+      business_id: business_id,
+      create_user: true
+    }
   });
 
-  if (authError) throw authError;
-  if (!newAuthUser.user) throw new Error('No se pudo crear el usuario del barbero.');
+  if (functionError) throw new Error(`Error en la creación (Edge Function): ${functionError.message}`);
+  if (functionData.error) throw new Error(functionData.error);
 
-  // 2. Crear profile con el business_id del owner
-  // Como estamos creando otro usuario, su profile se debe crear también
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: newAuthUser.user.id,
-    business_id,
-    role: 'barber',
-    full_name: barbero.nombre,
-  });
+  const userId = functionData.user_id;
 
-  if (profileError) throw profileError;
-
-  // 3. Insertar en tabla barberos
+  // 2. Insertar en tabla barberos (los datos adicionales que no están en profiles)
   const { data, error } = await supabase
     .from('barberos')
     .insert([{
       nombre: barbero.nombre,
+      numero_silla: barbero.numero_silla,
       fecha_nacimiento: barbero.fecha_nacimiento,
       fecha_ingreso: barbero.fecha_ingreso,
       email: barbero.email,
       business_id,
-      user_id: newAuthUser.user.id,
+      user_id: userId,
+      activo: true
     }])
     .select()
     .single();
 
   if (error) throw error;
   
-  // Registrar auditoría si es posible
+  // Registrar auditoría
   try {
-    const adminModule = await import('./admin');
-    await adminModule.default.logAuditEvent({
-      business_id,
-      user_id: user.id,
-      action: 'BARBERO_CREATED',
-      details: { barbero_id: data.id, nombre: barbero.nombre }
-    });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const adminModule = await import('./admin');
+      await adminModule.default.logAuditEvent({
+        business_id,
+        user_id: user.id,
+        action: 'BARBERO_CREATED',
+        details: { barbero_id: data.id, nombre: barbero.nombre }
+      });
+    }
   } catch (e) { console.error('Error logging audit', e); }
   
-  return { barbero: data, emailConfirmed: (newAuthUser.user.identities?.length ?? 0) > 0 && !!newAuthUser.user.confirmed_at };
+  return { barbero: data, emailConfirmed: true };
 };
+
 
 
 export const updateBarbero = async (id: string, updates: Partial<Barbero>): Promise<void> => {

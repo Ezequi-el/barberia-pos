@@ -150,15 +150,14 @@ export interface Transaction {
 // Para citas/agendamiento
 export interface Appointment {
   id: string;
-  customerName: string;
-  customerPhone: string;
+  clientName: string;
   date: string;
   time: string;
-  barberId: string;
-  barberName?: string;
+  barber: string;
   service: string;
   status: AppointmentStatus;
   notes?: string;
+  createdAt: string;
 }
 
 // Para barberos/staff - El enum Barber está definido en constants.ts
