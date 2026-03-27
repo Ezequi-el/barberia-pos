@@ -33,15 +33,27 @@ const Cart: React.FC<CartProps> = ({
     <div className="w-full md:w-[400px] flex flex-col bg-[#1e293b] border-l border-[#334155] shadow-2xl z-10 h-full">
       {/* Header */}
       <div className="p-4 md:p-6 border-b border-[#334155] bg-[#1e293b]">
-        <h2 className="text-lg md:text-xl font-heading font-bold text-[#e2b808] uppercase tracking-wider flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#e2b808] animate-pulse"></span>
-          Orden Actual
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg md:text-xl font-heading font-bold text-[#e2b808] uppercase tracking-wider flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#e2b808] animate-pulse"></span>
+            Orden
+            {items.length > 0 && (
+              <span className="ml-2 bg-[#e2b808] text-[#0f172a] text-xs font-bold px-2 py-1 rounded-full">
+                {items.length}
+              </span>
+            )}
+          </h2>
           {items.length > 0 && (
-            <span className="ml-2 bg-[#e2b808] text-[#0f172a] text-xs font-bold px-2 py-1 rounded-full">
-              {items.length}
-            </span>
+            <button
+              onClick={onClearCart}
+              className="p-2 text-[#64748b] hover:text-rose-500 transition-colors flex items-center gap-1 text-xs"
+              title="Vaciar carrito"
+            >
+              <Trash2 size={18} />
+              <span className="hidden sm:inline">Vaciar</span>
+            </button>
           )}
-        </h2>
+        </div>
       </div>
 
       {/* Cart Items - Scrollable Area */}
@@ -58,68 +70,43 @@ const Cart: React.FC<CartProps> = ({
           </div>
         ) : (
           <>
-            {/* Mobile: List View */}
             <div className="md:hidden space-y-2">
               {items.map(item => (
                 <div 
                   key={item.id} 
-                  className="bg-[#0f172a] p-3 rounded-lg border border-[#334155]"
+                  className="flex items-center justify-between w-full p-3 bg-[#0f172a] rounded-lg border border-[#334155]"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0 pr-2">
-                      <h4 className="font-bold text-sm text-[#f8fafc] truncate">
-                        {item.name}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[#e2b808] text-sm font-bold">
-                          ${item.price.toFixed(2)}
-                        </span>
-                        {item.type === ItemType.PRODUCT && item.stock !== undefined && (
-                          <span className="text-xs text-[#64748b]">
-                            • Stock: {item.stock}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Quantity Controls - Mobile */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-[#1e293b] rounded-lg border border-[#334155]">
-                        <button
-                          onClick={() => onUpdateQuantity(item.id, -1)}
-                          className={`p-2 hover:text-[#f8fafc] text-[#94a3b8] ${TOUCH_TARGET}`}
-                          aria-label="Reducir cantidad"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <span className="w-10 text-center text-sm font-bold">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => onUpdateQuantity(item.id, 1)}
-                          className={`p-2 hover:text-[#f8fafc] text-[#94a3b8] ${TOUCH_TARGET}`}
-                          aria-label="Aumentar cantidad"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                      
-                      <button
-                        onClick={() => onRemoveItem(item.id)}
-                        className={`p-2 text-[#64748b] hover:text-rose-500 transition-colors ${TOUCH_TARGET}`}
-                        aria-label="Eliminar del carrito"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
+                  <div className="flex-1 min-w-0 pr-2">
+                    <p className="font-bold text-[#f8fafc] truncate">{item.name}</p>
+                    <p className="text-[#e2b808] text-sm">${item.price.toFixed(2)}</p>
+                    <p className="text-[#64748b] text-[10px] uppercase mt-0.5">
+                      Subtotal: ${(item.price * item.quantity).toFixed(2)}
+                    </p>
                   </div>
                   
-                  {/* Subtotal */}
-                  <div className="flex justify-between items-center pt-2 border-t border-[#334155]">
-                    <span className="text-xs text-[#94a3b8]">Subtotal:</span>
-                    <span className="text-[#e2b808] font-bold">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => onUpdateQuantity(item.id, -1)}
+                      className="w-8 h-8 flex items-center justify-center bg-[#1e293b] border border-[#334155] rounded text-[#94a3b8] hover:text-[#f8fafc]"
+                      aria-label="Reducir"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
+                    <button
+                      onClick={() => onUpdateQuantity(item.id, 1)}
+                      className="w-8 h-8 flex items-center justify-center bg-[#1e293b] border border-[#334155] rounded text-[#94a3b8] hover:text-[#f8fafc]"
+                      aria-label="Aumentar"
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <button
+                      onClick={() => onRemoveItem(item.id)}
+                      className="w-8 h-8 flex items-center justify-center ml-1 text-[#64748b] hover:text-rose-500 transition-colors"
+                      aria-label="Eliminar"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -174,19 +161,17 @@ const Cart: React.FC<CartProps> = ({
               ))}
             </div>
 
-            {/* Clear Cart Button */}
-            {items.length > 0 && (
-              <div className="pt-3 md:pt-4 border-t border-[#334155]">
-                <Button
-                  onClick={onClearCart}
-                  variant="secondary"
-                  fullWidth
-                  className="text-sm"
-                >
-                  Vaciar Carrito
-                </Button>
-              </div>
-            )}
+            {/* Desktop only clear cart button (Optional fallback) */}
+            <div className="hidden md:block pt-4 border-t border-[#334155]">
+              <Button
+                onClick={onClearCart}
+                variant="secondary"
+                fullWidth
+                className="text-sm"
+              >
+                Vaciar Carrito
+              </Button>
+            </div>
           </>
         )}
       </div>
@@ -218,34 +203,16 @@ const Cart: React.FC<CartProps> = ({
           </div>
         </div>
 
-        {/* Checkout Button */}
-        <Button
-          onClick={onCheckout}
-          fullWidth
-          disabled={items.length === 0 || isLoading}
-          className={`h-12 md:h-14 text-base md:text-lg tracking-widest ${TOUCH_TARGET} bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]`}
-          isLoading={isLoading}
-        >
-          {isLoading ? 'PROCESANDO...' : 'COBRAR'}
-        </Button>
-
-        {/* Mobile: Quick Actions */}
-        <div className="md:hidden mt-4 grid grid-cols-2 gap-2">
-          <Button
-            onClick={onClearCart}
-            variant="secondary"
-            disabled={items.length === 0}
-            className="text-sm h-10"
-          >
-            Vaciar
-          </Button>
+        {/* Checkout Button - Hidden on mobile if fixed POS button is used, but kept for desktop */}
+        <div className="hidden md:block">
           <Button
             onClick={onCheckout}
-            variant="primary"
-            disabled={items.length === 0}
-            className="text-sm h-10 bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]"
+            fullWidth
+            disabled={items.length === 0 || isLoading}
+            className={`h-12 md:h-14 text-base md:text-lg tracking-widest ${TOUCH_TARGET} bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017]`}
+            isLoading={isLoading}
           >
-            Pagar
+            {isLoading ? 'PROCESANDO...' : 'COBRAR'}
           </Button>
         </div>
       </div>
