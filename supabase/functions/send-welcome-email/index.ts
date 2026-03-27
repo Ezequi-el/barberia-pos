@@ -79,7 +79,7 @@ function buildEmailHTML(nombre: string, negocio: string, email: string, password
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
               <tr>
                 <td align="center" style="background:#ffffff;border-radius:8px;padding:14px;">
-                  <a href="https://TU-APP.vercel.app" style="font-size:14px;font-weight:bold;color:#111111;text-decoration:none;letter-spacing:0.5px;">
+                  <a href="https://barberia-pos.vercel.app/" style="font-size:14px;font-weight:bold;color:#111111;text-decoration:none;letter-spacing:0.5px;">
                     Entrar al sistema →
                   </a>
                 </td>
