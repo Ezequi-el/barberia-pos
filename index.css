@@ -1,0 +1,309 @@
+/* Velo POS - Midnight Gold Theme */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
+
+:root {
+  --color-aura-primary: #e2b808;
+  --color-aura-secondary: #38bdf8;
+  --color-aura-accent: #0f172a;
+  --color-aura-dark: #1e293b;
+  --color-aura-light: #f8fafc;
+  --color-aura-border: #334155;
+  --color-aura-muted: #94a3b8;
+  --color-aura-success: #10b981;
+  --color-aura-error: #ef4444;
+  --color-aura-warning: #f59e0b;
+  --color-aura-info: #3b82f6;
+}
+
+/* =====================================================
+   LIGHT MODE - Tema crema cálida
+   ===================================================== */
+.light-mode {
+  --bg-primary: #F8F6F0;
+  --bg-card: #FFFFFF;
+  --text-primary: #1A1A1A;
+  --text-secondary: #6B6B6B;
+  --border: #E5E0D8;
+}
+
+/* Fondos principales */
+.light-mode .bg-\[\#0f172a\]  { background-color: #F8F6F0 !important; }
+.light-mode .bg-\[\#1e293b\]  { background-color: #FFFFFF !important; }
+.light-mode .bg-\[\#1e293b\]\/30 { background-color: rgba(255,255,255,0.6) !important; }
+
+/* Sidebar recibe color especial */
+.light-mode aside.bg-\[\#1e293b\],
+.light-mode .velo-sidebar { background-color: #1A1A2E !important; }
+
+/* Bordes */
+.light-mode .border-\[\#334155\] { border-color: #E5E0D8 !important; }
+.light-mode .divide-\[\#334155\] > :not([hidden]) ~ :not([hidden]) { border-color: #E5E0D8 !important; }
+
+/* Textos */
+.light-mode .text-\[\#f8fafc\]  { color: #1A1A1A !important; }
+.light-mode .text-\[\#94a3b8\]  { color: #6B6B6B !important; }
+.light-mode .text-\[\#64748b\]  { color: #6B6B6B !important; }
+
+/* Hover states */
+.light-mode .hover\:border-\[\#e2b808\]\/30:hover { border-color: rgba(184,134,11,0.3) !important; }
+.light-mode .hover\:bg-\[\#334155\]\/50:hover     { background-color: rgba(229,224,216,0.6) !important; }
+
+/* Scrollbar en modo claro */
+.light-mode ::-webkit-scrollbar-track { background: #F8F6F0; }
+.light-mode ::-webkit-scrollbar-thumb { background: #E5E0D8; }
+.light-mode ::-webkit-scrollbar-thumb:hover { background: #B8860B; }
+
+/* Overlays / fondos con opacidad */
+.light-mode .bg-\[\#0f172a\]\/80 { background-color: rgba(248,246,240,0.8) !important; }
+.light-mode .bg-\[\#0f172a\]\/50 { background-color: rgba(248,246,240,0.5) !important; }
+
+/* =====================================================
+   Reset box model
+   ===================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--color-aura-accent);
+  color: var(--color-aura-light);
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.font-heading {
+  font-family: 'Oswald', sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-aura-dark);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-aura-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-aura-muted);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-aura-primary);
+  color: var(--color-aura-accent);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--color-aura-primary);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+/* Gradient backgrounds */
+.bg-gradient-aura {
+  background: linear-gradient(135deg, var(--color-aura-accent) 0%, var(--color-aura-dark) 100%);
+}
+
+.bg-gradient-gold {
+  background: linear-gradient(135deg, var(--color-aura-primary) 0%, #fbbf24 100%);
+}
+
+/* Button enhancements */
+.btn-aura {
+  background: linear-gradient(135deg, var(--color-aura-primary) 0%, #d4a017 100%);
+  color: var(--color-aura-accent);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+.btn-aura:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px -5px rgba(226, 184, 8, 0.3);
+}
+
+.btn-aura:active {
+  transform: translateY(0);
+}
+
+/* Card styles */
+.card-aura {
+  background: var(--color-aura-dark);
+  border: 1px solid var(--color-aura-border);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.card-aura:hover {
+  border-color: var(--color-aura-primary);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.5);
+}
+
+/* Status badges */
+.badge-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--color-aura-success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.badge-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-aura-error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--color-aura-warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.badge-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-aura-info);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+/* Print styles for receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  #printable-receipt,
+  #printable-receipt * {
+    visibility: visible;
+  }
+  
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  
+  .hidden {
+    display: block !important;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .mobile-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .mobile-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
+/* Utility classes */
+.text-aura-primary { color: var(--color-aura-primary); }
+.text-aura-secondary { color: var(--color-aura-secondary); }
+.text-aura-light { color: var(--color-aura-light); }
+.text-aura-muted { color: var(--color-aura-muted); }
+
+.bg-aura-primary { background-color: var(--color-aura-primary); }
+.bg-aura-secondary { background-color: var(--color-aura-secondary); }
+.bg-aura-accent { background-color: var(--color-aura-accent); }
+.bg-aura-dark { background-color: var(--color-aura-dark); }
+
+.border-aura { border-color: var(--color-aura-border); }
+.border-aura-primary { border-color: var(--color-aura-primary); }
+.border-aura-secondary { border-color: var(--color-aura-secondary); }
+
+/* Fix ícono de calendario en inputs date para tema oscuro */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.8) sepia(1) hue-rotate(5deg) saturate(3);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}

@@ -1,12 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { Transaction } from '../types';
-import { ChevronLeft, Download, FileText, TrendingUp, DollarSign, Calendar, AlertCircle } from 'lucide-react';
+// ============================================================================
+// REPORTS COMPONENT - Sistema de reportes con PIN administrativo
+// ============================================================================
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Transaction, PaymentMethod } from '../types';
+import { 
+  ChevronLeft, 
+  Download, 
+  TrendingUp, 
+  DollarSign, 
+  Calendar,
+  Trash2,
+  Lock,
+  RefreshCw,
+  Filter,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  Printer
+} from 'lucide-react';
 import Button from './Button';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
-import { jsPDF } from 'jspdf';
+import Modal from './Modal';
+import Input from './Input';
+import CorteDeCajaModal from './CorteDeCajaModal';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { getTransactions } from '../lib/database';
+import { cancelTransactionWithPin } from '../lib/admin';
+import { useToastNotifications } from './Toast';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ReportsProps {
   onBack: () => void;
@@ -15,358 +38,843 @@ interface ReportsProps {
 const Reports: React.FC<ReportsProps> = ({ onBack }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [filterDate, setFilterDate] = useState<string>('');
+  const [filterBarber, setFilterBarber] = useState<string>('');
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('');
+  
+  // Estado para cancelación con PIN
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [corteModalOpen, setCorteModalOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [adminPin, setAdminPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  
+  // Toast notifications
+  const { showSuccess, showError, showWarning, showInfo } = useToastNotifications();
+  
+  // Autenticación
+  const { user, profile } = useAuth();
+  const isBarber = profile?.role === 'barber';
 
-  // Load transactions on mount
+  // Touch target mínimo: 44px
+  const TOUCH_TARGET = 'min-h-[44px] min-w-[44px]';
+
+  // Cargar transacciones
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const data = await getTransactions();
-        setTransactions(data);
-      } catch (err: any) {
-        console.error("Error cargando transacciones:", err);
-        setError("No se pudieron cargar las transacciones.");
-      } finally {
-        setLoading(false);
+    loadTransactions();
+  }, [user, isBarber]);
+
+  const loadTransactions = async () => {
+    try {
+      setLoading(true);
+      const data = await getTransactions(100, isBarber ? user?.id : undefined);
+      setTransactions(data);
+    } catch (error: any) {
+      console.error('Error loading transactions:', error);
+      showError('Error al cargar transacciones', 'Error de carga');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filtrar transacciones
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      // Filtrar por fecha
+      if (filterDate) {
+        const transactionDate = new Date(t.date).toISOString().split('T')[0];
+        if (transactionDate !== filterDate) return false;
       }
-    };
-    loadData();
-  }, []);
+      
+      // Filtrar por barbero
+      if (filterBarber && t.barber !== filterBarber) return false;
+      
+      // Filtrar por método de pago
+      if (filterPaymentMethod && t.paymentMethod !== filterPaymentMethod) return false;
+      
+      return true;
+    });
+  }, [transactions, filterDate, filterBarber, filterPaymentMethod]);
 
-  // Error Boundary effect for rendering errors
-  useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      console.error("Error capturado en Reports:", event.error);
-      setError(event.error?.message || "Error desconocido de renderizado");
-    };
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-zinc-400 animate-pulse">Cargando reportes...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-screen bg-zinc-950 flex flex-col items-center justify-center text-center p-6">
-        <AlertCircle className="text-red-500 w-16 h-16 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Algo salió mal en Reportes</h2>
-        <p className="text-zinc-400 mb-6 max-w-md bg-zinc-900 p-4 rounded font-mono text-sm border border-red-900/50">
-          {error}
-        </p>
-        <Button onClick={onBack}>Volver al Dashboard</Button>
-      </div>
-    );
-  }
-
-  try {
-    // Calculate KPIs
-    const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
-    const totalTransactions = transactions.length;
-
+  // Estadísticas
+  const stats = useMemo(() => {
+    const totalSales = filteredTransactions.reduce((sum, t) => sum + t.total, 0);
+    const totalTransactions = filteredTransactions.length;
+    
+    // Ventas de hoy
     const today = new Date().toISOString().split('T')[0];
-    const todaySales = transactions
-      .filter(t => t.date.startsWith(today))
+    const todaySales = filteredTransactions
+      .filter(t => new Date(t.date).toISOString().split('T')[0] === today)
       .reduce((sum, t) => sum + t.total, 0);
-
-    // Sales by Barber
-    const salesByBarber = transactions.reduce((acc, t) => {
+    
+    // Ventas por barbero para el gráfico
+    const salesByBarber = filteredTransactions.reduce((acc, t) => {
       acc[t.barber] = (acc[t.barber] || 0) + t.total;
       return acc;
     }, {} as Record<string, number>);
-
+    
     const chartData = Object.keys(salesByBarber).map(key => ({
       name: key,
       value: salesByBarber[key]
     }));
+    
+    // Métodos de pago más usados
+    const paymentMethods = filteredTransactions.reduce((acc, t) => {
+      acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const topPaymentMethod = Object.entries(paymentMethods)
+      .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'N/A';
+    
+    return {
+      totalSales,
+      totalTransactions,
+      todaySales,
+      chartData,
+      topPaymentMethod,
+      barbers: Array.from(new Set(filteredTransactions.map(t => t.barber))),
+      paymentMethods: Array.from(new Set(filteredTransactions.map(t => t.paymentMethod)))
+    };
+  }, [filteredTransactions]);
 
-    const downloadBlob = (blob: Blob, fileName: string) => {
-      // Crear URL del blob
-      const url = window.URL.createObjectURL(blob);
+  // Exportar a CSV de forma amena para Excel (Español)
+  const exportCSV = () => {
+    try {
+      const headers = ['ID', 'Fecha', 'Barbero', 'Método', 'Referencia', 'Total', 'Items'];
+      const rows = filteredTransactions.map(t => [
+        t.id.slice(0, 8).toUpperCase(),
+        new Date(t.date).toLocaleString(),
+        t.barber,
+        t.paymentMethod,
+        t.reference || '-',
+        t.total.toFixed(2),
+        `"${t.items.map(i => `${i.quantity}x ${i.name}`).join(' | ')}"`
+      ]);
 
-      // Crear elemento link invisible
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      // No ocultar el link para evitar bloqueos de seguridad en algunos navegadores
+      // Totales
+      const summaryRows = [
+        [], // Línea en blanco
+        ['', '', '', '', 'RESUMEN POR MÉTODO DE PAGO', '', ''],
+      ];
+      
+      const paymentTotals = filteredTransactions.reduce((acc, t) => {
+        acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + t.total;
+        return acc;
+      }, {} as Record<string, number>);
+
+      Object.entries(paymentTotals).forEach(([method, total]) => {
+        summaryRows.push(['', '', '', '', method, (total as number).toFixed(2), '']);
+      });
+
+      summaryRows.push(['', '', '', '', 'TOTAL GENERAL', stats.totalSales.toFixed(2), '']);
+
+      const BOM = '\uFEFF';
+      const csvContent = BOM + [
+        headers.join(';'), 
+        ...rows.map(r => r.join(';')),
+        ...summaryRows.map(r => r.join(';'))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `barberia_reporte_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
-
-      // Simular click
       link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showSuccess('Reporte exportado exitosamente', 'Exportación completa');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      showError('Error al exportar el reporte', 'Error de exportación');
+    }
+  };
 
-      // Limpiar después de un retraso mayor (5 segundos) para asegurar compatibilidad
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 1000);
-    };
-
-    const exportToPDF = () => {
-      try {
-        const doc = new jsPDF();
-
-        // Header
-        doc.setFontSize(24);
-        doc.setFont('helvetica', 'bold');
-        doc.text('NERON BARBERSHOP', 105, 20, { align: 'center' });
-
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Reporte de Ventas', 105, 28, { align: 'center' });
-        doc.text(new Date().toLocaleDateString('es-MX', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }), 105, 34, { align: 'center' });
-
-        // KPIs Section
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('RESUMEN GENERAL', 14, 45);
-
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Ventas Totales: $${totalSales.toLocaleString()}`, 14, 52);
-        doc.text(`Total Transacciones: ${totalTransactions}`, 14, 58);
-        doc.text(`Ventas Hoy: $${todaySales.toLocaleString()}`, 14, 64);
-
-        // Sales by Barber
-        doc.setFont('helvetica', 'bold');
-        doc.text('VENTAS POR BARBERO', 14, 75);
-        doc.setFont('helvetica', 'normal');
-        let yPos = 82;
-        Object.entries(salesByBarber).forEach(([barber, total]) => {
-          doc.text(`${barber}: $${total.toLocaleString()}`, 14, yPos);
-          yPos += 6;
-        });
-
-        // Transactions Table
-        autoTable(doc, {
-          startY: yPos + 5,
-          head: [['Fecha', 'Barbero', 'Items', 'Método', 'Total']],
-          body: transactions.map(t => [
-            new Date(t.date).toLocaleString('es-MX', {
-              day: '2-digit',
-              month: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit'
-            }),
-            t.barber,
-            t.items.map(i => `${i.quantity}x ${i.name}`).join(', '),
-            t.paymentMethod,
-            `$${t.total}`,
-          ]),
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [245, 158, 11], textColor: 0 },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-        });
-
-        // Open PDF in new tab
-        const pdfOutput = doc.output('bloburl');
-        window.open(pdfOutput, '_blank');
-      } catch (error: any) {
-        console.error('Error generando PDF:', error);
-        alert(`Error al generar PDF: ${error.message}`);
+  // Exportar a PDF detallado y profesional usando jsPDF
+  const exportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Header Banner (Estilo Premium Velo POS)
+      doc.setFillColor(15, 23, 42); // bg-[#0f172a]
+      doc.rect(0, 0, 210, 24, 'F');
+      
+      doc.setTextColor(226, 184, 8); // text-[#e2b808]
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text('VELO POS', 14, 16);
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text('REPORTE DE VENTAS', 150, 15);
+      
+      // Info texto
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(10);
+      doc.text(`Generado el: ${new Date().toLocaleString()}`, 14, 34);
+      if (filterDate) {
+        doc.text(`Filtro de Fecha: ${filterDate}`, 14, 40);
       }
-    };
+      
+      // Tabla principal de transacciones
+      const tableColumn = ["ID", "Fecha", "Barbero", "Método", "Total", "Items"];
+      const tableRows = filteredTransactions.map(t => [
+        t.id.slice(0, 8).toUpperCase(),
+        new Date(t.date).toLocaleString(),
+        t.barber,
+        t.paymentMethod,
+        `$${t.total.toFixed(2)}`,
+        t.items.map(i => `${i.quantity}x ${i.name}`).join(', ')
+      ]);
 
-    const exportToExcel = () => {
-      try {
-        // Create workbook
-        const wb = XLSX.utils.book_new();
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 46,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [226, 184, 8], textColor: [15, 23, 42], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] }
+      });
 
-        // Sheet 1: KPIs Summary
-        const summaryData = [
-          ['NERON BARBERSHOP - REPORTE DE VENTAS'],
-          ['Fecha:', new Date().toLocaleDateString('es-MX')],
-          [],
-          ['RESUMEN GENERAL'],
-          ['Ventas Totales', `$${totalSales.toLocaleString()}`],
-          ['Total Transacciones', totalTransactions],
-          ['Ventas Hoy', `$${todaySales.toLocaleString()}`],
-          [],
-          ['VENTAS POR BARBERO'],
-          ...Object.entries(salesByBarber).map(([barber, total]) => [barber, `$${total.toLocaleString()}`]),
-        ];
+      const finalY = (doc as any).lastAutoTable.finalY || 46;
 
-        const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
+      // Cálculo de totales desglosados
+      const paymentTotals = filteredTransactions.reduce((acc, t) => {
+        acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + t.total;
+        return acc;
+      }, {} as Record<string, number>);
 
-        // Sheet 2: Detailed Transactions
-        const transactionsData = [
-          ['ID', 'Fecha', 'Hora', 'Barbero', 'Método', 'Referencia', 'Total', 'Items'],
-          ...transactions.map(t => [
-            t.id.slice(0, 8),
-            new Date(t.date).toLocaleDateString('es-MX'),
-            new Date(t.date).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-            t.barber,
-            t.paymentMethod,
-            t.reference || '-',
-            t.total,
-            t.items.map(i => `${i.quantity}x ${i.name} ($${i.price})`).join(' | '),
-          ]),
-        ];
+      const summaryRows = Object.entries(paymentTotals).map(([method, total]) => [
+        method, 
+        `$${(total as number).toFixed(2)}`
+      ]);
 
-        const ws2 = XLSX.utils.aoa_to_sheet(transactionsData);
-        XLSX.utils.book_append_sheet(wb, ws2, 'Transacciones');
+      // Agregar fila de total general
+      summaryRows.push(['TOTAL GENERAL', `$${stats.totalSales.toLocaleString()}`]);
 
-        // Save Excel file using standard method
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const excelBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      // Tabla secundaria de Resumen
+      autoTable(doc, {
+        head: [['Resumen por Método', 'Monto']],
+        body: summaryRows,
+        startY: finalY + 12,
+        theme: 'grid',
+        tableWidth: 80,
+        margin: { left: 14 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+        didParseCell: function(data) {
+          // Resaltar Total General
+          if (data.row.index === summaryRows.length - 1 && data.section === 'body') {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [226, 184, 8];
+            data.cell.styles.textColor = [15, 23, 42];
+          }
+        }
+      });
 
-        const url = window.URL.createObjectURL(excelBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'reporte_ventas.xlsx';
-        document.body.appendChild(link);
-        link.click();
+      doc.save(`velo_pos_reporte_${new Date().toISOString().split('T')[0]}.pdf`);
+      showSuccess('PDF generado exitosamente', 'Exportación completa');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      showError('Error al generar PDF', 'Error de exportación');
+    }
+  };
 
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }, 1000);
-      } catch (error: any) {
-        console.error('Error generando Excel:', error);
-        alert(`Error al generar Excel: ${error.message}`);
+  // Iniciar cancelación de transacción
+  const handleCancelTransaction = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setAdminPin('');
+    setShowPin(false);
+    setCancelModalOpen(true);
+  };
+
+  // Confirmar cancelación con PIN
+  const handleConfirmCancel = async () => {
+    if (!selectedTransaction) return;
+    
+    try {
+      setCancelling(true);
+      
+      // Obtener user_id del contexto de autenticación
+      const userId = user?.id || 'demo-user-id';
+      
+      const result = await cancelTransactionWithPin({
+        transaction_id: selectedTransaction.id,
+        user_id: userId,
+        admin_pin: adminPin
+      });
+      
+      if (result.success) {
+        showSuccess('Transacción cancelada exitosamente', 'Cancelación completa');
+        
+        // Actualizar lista de transacciones
+        setTransactions(prev => prev.filter(t => t.id !== selectedTransaction.id));
+        
+        // Cerrar modal
+        setCancelModalOpen(false);
+        setSelectedTransaction(null);
+        setAdminPin('');
+      } else {
+        showError(result.error || 'Error al cancelar transacción', 'Error de cancelación');
       }
-    };
+    } catch (error: any) {
+      console.error('Error cancelling transaction:', error);
+      showError(error.message || 'Error al cancelar transacción', 'Error de cancelación');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
+  // Limpiar filtros
+  const clearFilters = () => {
+    setFilterDate('');
+    setFilterBarber('');
+    setFilterPaymentMethod('');
+    showInfo('Filtros limpiados', 'Filtros');
+  };
+
+  if (loading) {
     return (
-      <div className="h-screen bg-zinc-950 flex flex-col p-6 max-w-7xl mx-auto w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white">
-              <ChevronLeft />
-            </button>
+      <div className="h-screen flex items-center justify-center bg-[#0f172a]">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#e2b808] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#94a3b8] animate-pulse">Cargando reportes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen md:h-screen bg-[#0f172a] flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full overflow-y-auto md:overflow-hidden">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8">
+        <div className="flex items-center gap-3 md:gap-4">
+          <button 
+            onClick={onBack} 
+            className={`p-2 hover:bg-[#334155] rounded-full text-[#94a3b8] hover:text-[#f8fafc] ${TOUCH_TARGET}`}
+            aria-label="Volver al dashboard"
+          >
+            <ChevronLeft />
+          </button>
+          <div>
+            <h2 className="text-2xl md:text-3xl font-heading font-bold text-[#e2b808] uppercase tracking-wide">
+              {isBarber ? 'Mis Reportes' : 'Reportes'}
+            </h2>
+            <p className="text-[#94a3b8] text-sm md:text-base">
+              Análisis financiero y operativo
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 md:gap-3">
+          {!isBarber && (
+            <>
+              <Button 
+                onClick={() => setCorteModalOpen(true)}
+                className="flex-1 sm:flex-initial gap-2 text-xs md:text-base bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] print:hidden min-h-[44px]"
+              >
+                <Printer size={16} className="md:w-[18px]" /> 
+                <span className="hidden xs:inline">Corte</span>
+                <span className="xs:hidden">Corte</span>
+              </Button>
+              <Button 
+                onClick={exportCSV} 
+                variant="secondary" 
+                className="flex-1 sm:flex-initial gap-2 text-xs md:text-base print:hidden min-h-[44px] px-2 md:px-4"
+                title="Exportar Excel"
+              >
+                <Download size={16} className="md:w-[18px]" /> 
+                <span className="hidden md:inline">Excel</span>
+              </Button>
+              <Button 
+                onClick={exportPDF} 
+                variant="secondary" 
+                className="flex-1 sm:flex-initial gap-2 text-xs md:text-base print:hidden min-h-[44px] px-2 md:px-4"
+                title="Exportar PDF"
+              >
+                <Printer size={16} className="md:w-[18px]" /> 
+                <span className="hidden md:inline">PDF</span>
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Filtros - Responsivo */}
+      <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 mb-6 md:mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[#f8fafc] font-bold uppercase text-sm flex items-center gap-2">
+            <Filter size={16} /> Filtros
+          </h3>
+          <button
+            onClick={clearFilters}
+            className="text-xs text-[#e2b808] hover:text-[#d4a017]"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Filtro por fecha */}
+          <div>
+            <label className="block text-xs text-[#94a3b8] mb-2">Fecha</label>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
+            />
+          </div>
+          
+          {/* Filtro por barbero (Oculto para barberos) */}
+          {!isBarber && (
             <div>
-              <h2 className="text-3xl font-heading font-bold text-white uppercase tracking-wide">Reportes</h2>
-              <p className="text-zinc-500">Análisis de ventas y rendimiento</p>
+              <label className="block text-xs text-[#94a3b8] mb-2">Barbero</label>
+              <select
+                value={filterBarber}
+                onChange={(e) => setFilterBarber(e.target.value)}
+                className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
+              >
+                <option value="">Todos los barberos</option>
+                {stats.barbers.map(barber => (
+                  <option key={barber} value={barber}>{barber}</option>
+                ))}
+              </select>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <Button onClick={exportToPDF} className="gap-2 bg-red-600 hover:bg-red-700 text-white border-red-800">
-              <FileText size={18} /> Ver PDF
-            </Button>
-            <Button onClick={exportToExcel} className="gap-2 bg-green-600 hover:bg-green-700 text-white border-green-800">
-              <Download size={18} /> Exportar Excel
-            </Button>
+          )}
+          
+          {/* Filtro por método de pago */}
+          <div>
+            <label className="block text-xs text-[#94a3b8] mb-2">Método de Pago</label>
+            <select
+              value={filterPaymentMethod}
+              onChange={(e) => setFilterPaymentMethod(e.target.value)}
+              className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
+            >
+              <option value="">Todos los métodos</option>
+              {stats.paymentMethods.map(method => (
+                <option key={method} value={method}>{method}</option>
+              ))}
+            </select>
           </div>
         </div>
+        
+        {/* Contador de resultados */}
+        <div className="mt-4 pt-4 border-t border-[#334155] flex justify-between items-center">
+          <span className="text-sm text-[#94a3b8]">
+            {filteredTransactions.length} de {transactions.length} transacciones
+          </span>
+          <span className="text-[#e2b808] font-bold">
+            Total filtrado: ${stats.totalSales.toLocaleString()}
+          </span>
+        </div>
+      </div>
 
-        {/* KPIs Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                <DollarSign size={24} />
-              </div>
-              <div>
-                <p className="text-zinc-500 text-sm uppercase font-bold">Ventas Totales</p>
-                <p className="text-3xl font-heading font-bold text-white">${totalSales.toLocaleString()}</p>
-              </div>
+      {/* KPI Cards - Responsivo: 2x2 en móvil */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+        <div className="bg-[#1e293b] border border-[#334155] p-4 md:p-6 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[#94a3b8] text-xs uppercase font-bold tracking-wider mb-1">
+                Ventas Totales
+              </p>
+              <h3 className="text-2xl md:text-3xl font-heading font-bold text-[#f8fafc]">
+                ${stats.totalSales.toLocaleString()}
+              </h3>
             </div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
-                <TrendingUp size={24} />
-              </div>
-              <div>
-                <p className="text-zinc-500 text-sm uppercase font-bold">Transacciones</p>
-                <p className="text-3xl font-heading font-bold text-white">{totalTransactions}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
-                <Calendar size={24} />
-              </div>
-              <div>
-                <p className="text-zinc-500 text-sm uppercase font-bold">Ventas Hoy</p>
-                <p className="text-3xl font-heading font-bold text-white">${todaySales.toLocaleString()}</p>
-              </div>
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[#e2b808]/10 flex items-center justify-center text-[#e2b808]">
+              <DollarSign size={20} />
             </div>
           </div>
         </div>
+        
+        <div className="bg-[#1e293b] border border-[#334155] p-4 md:p-6 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[#94a3b8] text-xs uppercase font-bold tracking-wider mb-1">
+                Transacciones
+              </p>
+              <h3 className="text-2xl md:text-3xl font-heading font-bold text-[#f8fafc]">
+                {stats.totalTransactions}
+              </h3>
+            </div>
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[#38bdf8]/10 flex items-center justify-center text-[#38bdf8]">
+              <TrendingUp size={20} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-[#1e293b] border border-[#334155] p-4 md:p-6 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[#94a3b8] text-xs uppercase font-bold tracking-wider mb-1">
+                Ventas Hoy
+              </p>
+              <h3 className="text-2xl md:text-3xl font-heading font-bold text-[#f8fafc]">
+                ${stats.todaySales.toLocaleString()}
+              </h3>
+            </div>
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+              <Calendar size={20} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-[#1e293b] border border-[#334155] p-4 md:p-6 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[#94a3b8] text-xs uppercase font-bold tracking-wider mb-1">
+                Método Top
+              </p>
+              <h3 className="text-2xl md:text-3xl font-heading font-bold text-[#f8fafc] truncate">
+                {stats.topPaymentMethod}
+              </h3>
+            </div>
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500">
+              <Lock size={20} />
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wide">Ventas por Barbero</h3>
-            <div className="h-64">
+      {/* Contenido principal - Responsivo */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+        {/* Gráfico */}
+        <div className="lg:col-span-1 bg-[#1e293b] border border-[#334155] rounded-xl p-4 md:p-6 flex flex-col">
+          <h4 className="text-[#f8fafc] font-bold uppercase text-sm mb-4 md:mb-6">
+            {isBarber ? 'Mi Rendimiento' : 'Rendimiento por Barbero'}
+          </h4>
+          <div className="flex-1 w-full min-h-[200px] md:min-h-[250px]">
+            {stats.chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="name" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px' }}
-                    itemStyle={{ color: '#fff' }}
-                    cursor={{ fill: '#27272a' }}
+                <BarChart data={stats.chartData}>
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#64748b" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={false} 
                   />
-                  <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#f59e0b' : '#d97706'} />
+                  <YAxis 
+                    stroke="#64748b" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickFormatter={(value) => `$${value}`}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#1e293b' }}
+                    contentStyle={{ 
+                      backgroundColor: '#0f172a', 
+                      borderColor: '#334155', 
+                      color: '#f8fafc' 
+                    }}
+                    itemStyle={{ color: '#e2b808' }}
+                    formatter={(value) => [`$${value}`, 'Ventas']}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {stats.chartData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={index % 2 === 0 ? '#e2b808' : '#475569'} 
+                      />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl">
-            <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wide">Tendencia Mensual</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={(() => {
-                  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-                  return Array.from({ length: daysInMonth }, (_, i) => {
-                    const day = i + 1;
-                    const dateStr = new Date(new Date().getFullYear(), new Date().getMonth(), day).toISOString().split('T')[0];
-                    const total = transactions
-                      .filter(t => t.date.startsWith(dateStr))
-                      .reduce((sum, t) => sum + t.total, 0);
-                    return { day, total };
-                  });
-                })()}>
-                  <XAxis dataKey="day" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px' }}
-                    itemStyle={{ color: '#fff' }}
-                    labelStyle={{ color: '#a1a1aa' }}
-                  />
-                  <Line type="monotone" dataKey="total" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            ) : (
+              <div className="h-full flex items-center justify-center text-[#64748b]">
+                No hay datos para mostrar
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Tabla de transacciones */}
+        <div className="lg:col-span-2 bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-[#334155] bg-[#0f172a]">
+            <h4 className="text-[#f8fafc] font-bold uppercase text-sm">
+              Historial de Transacciones
+            </h4>
+          </div>
+          
+          <div className="flex-1 overflow-auto">
+            {filteredTransactions.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center p-8 text-[#64748b]">
+                <div className="w-16 h-16 bg-[#334155] rounded-full flex items-center justify-center mb-4">
+                  <span className="text-2xl">📊</span>
+                </div>
+                <p className="text-center">No hay transacciones que coincidan con los filtros</p>
+              </div>
+            ) : (
+              <>
+                {/* Mobile View: Cards (Visible en < 640px) */}
+                <div className="md:hidden divide-y divide-[#334155]">
+                  {[...filteredTransactions].reverse().map(t => (
+                    <div key={t.id} className="p-4 active:bg-[#334155]/20">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="text-[#f8fafc] font-bold text-sm">
+                            {new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t.barber}
+                          </p>
+                          <p className="text-xs text-[#94a3b8] mt-0.5">
+                            {t.items.map(i => i.name).join(', ')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleCancelTransaction(t)}
+                          className={`p-2 text-[#64748b] hover:text-rose-500 transition-colors ${TOUCH_TARGET}`}
+                          aria-label="Cancelar transacción"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-[#334155] text-[#f8fafc] px-2 py-0.5 rounded-[4px] text-[10px] font-bold uppercase">
+                            {t.paymentMethod}
+                          </span>
+                          {t.reference && (
+                            <span className="text-[10px] text-[#64748b] truncate max-w-[80px]">
+                              #{t.reference}
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-bold text-[#e2b808] text-base">
+                          ${t.total.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop View: Table (Visible en >= 640px) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead className="bg-[#1e293b] text-[#94a3b8] uppercase text-xs font-bold tracking-wider sticky top-0">
+                      <tr>
+                        <th className="p-3 md:p-4">Hora</th>
+                        <th className="p-3 md:p-4">Barbero</th>
+                        <th className="p-3 md:p-4">Detalle</th>
+                        <th className="p-3 md:p-4">Pago</th>
+                        <th className="p-3 md:p-4 text-right">Total</th>
+                        <th className="p-3 md:p-4 text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#334155] text-sm">
+                      {[...filteredTransactions].reverse().map(t => (
+                        <tr key={t.id} className="hover:bg-[#334155]/30">
+                          <td className="p-3 md:p-4 text-[#94a3b8]">
+                            {new Date(t.date).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                            <div className="text-xs text-[#64748b]">
+                              {new Date(t.date).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4 text-[#f8fafc] font-medium">
+                            {t.barber}
+                          </td>
+                          <td className="p-3 md:p-4 text-[#94a3b8] max-w-xs">
+                            <div className="truncate" title={t.items.map(i => i.name).join(', ')}>
+                              {t.items.map(i => i.name).join(', ')}
+                            </div>
+                            <div className="text-xs text-[#64748b] mt-1">
+                              {t.items.length} items
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <span className="bg-[#334155] text-[#f8fafc] px-2 py-1 rounded text-xs font-bold uppercase inline-block">
+                              {t.paymentMethod}
+                            </span>
+                            {t.reference && (
+                              <div className="text-xs text-[#64748b] mt-1 truncate max-w-[120px]">
+                                Ref: {t.reference}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 md:p-4 text-right">
+                            <span className="font-bold text-[#e2b808] text-lg">
+                              ${t.total.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3 md:p-4 text-center">
+                            <button
+                              onClick={() => handleCancelTransaction(t)}
+                              className={`p-2 text-[#64748b] hover:text-rose-500 transition-colors ${TOUCH_TARGET}`}
+                              aria-label="Cancelar transacción"
+                              title="Cancelar transacción (requiere PIN)"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* Footer de la tabla */}
+          {filteredTransactions.length > 0 && (
+            <div className="p-3 md:p-4 border-t border-[#334155] bg-[#0f172a] text-xs text-[#94a3b8] flex justify-between items-center">
+              <span>
+                Mostrando {filteredTransactions.length} transacciones
+              </span>
+              <span className="text-[#e2b808] font-bold">
+                Total: ${stats.totalSales.toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
-    );
-  } catch (e: any) {
-    return (
-      <div className="h-screen bg-zinc-950 flex flex-col items-center justify-center text-center p-6">
-        <AlertCircle className="text-red-500 w-16 h-16 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Error de Renderizado</h2>
-        <p className="text-zinc-400 mb-6 max-w-md bg-zinc-900 p-4 rounded font-mono text-sm border border-red-900/50">
-          {e.message}
-        </p>
-        <Button onClick={onBack}>Volver al Dashboard</Button>
-      </div>
-    );
-  }
+
+      {/* Modal de cancelación con PIN */}
+      <Modal
+        isOpen={cancelModalOpen}
+        onClose={() => {
+          setCancelModalOpen(false);
+          setSelectedTransaction(null);
+          setAdminPin('');
+        }}
+        title="Cancelar Transacción"
+      >
+        {selectedTransaction && (
+          <div className="space-y-6">
+            {/* Información de la transacción */}
+            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
+              <h4 className="text-[#f8fafc] font-bold mb-3">Detalles de la transacción</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[#94a3b8]">ID:</span>
+                  <span className="text-[#f8fafc] font-mono">
+                    {selectedTransaction.id.slice(0, 8).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#94a3b8]">Fecha:</span>
+                  <span className="text-[#f8fafc]">
+                    {new Date(selectedTransaction.date).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#94a3b8]">Barbero:</span>
+                  <span className="text-[#f8fafc]">{selectedTransaction.barber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#94a3b8]">Total:</span>
+                  <span className="text-[#e2b808] font-bold">
+                    ${selectedTransaction.total.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#94a3b8]">Items:</span>
+                  <span className="text-[#f8fafc]">
+                    {selectedTransaction.items.length} productos/servicios
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Advertencia */}
+            <div className="bg-[#e2b808]/10 border border-[#e2b808]/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-[#e2b808] mt-0.5" size={20} />
+                <div>
+                  <h5 className="text-[#e2b808] font-bold mb-1">¡Advertencia!</h5>
+                  <p className="text-[#94a3b8] text-sm">
+                    Esta acción cancelará la transacción y restaurará el stock de productos.
+                    Se requiere PIN administrativo para continuar.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Campo de PIN */}
+            <div>
+              <label className="block text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-2">
+                PIN Administrativo (4 dígitos)
+              </label>
+              <div className="relative">
+                <input
+                  type={showPin ? "text" : "password"}
+                  value={adminPin}
+                  onChange={(e) => {
+                    // Solo permitir números y máximo 4 dígitos
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setAdminPin(value);
+                  }}
+                  placeholder="Ingresa el PIN"
+                  className="w-full bg-[#0f172a] border border-[#334155] rounded-lg pl-4 pr-12 py-3 text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin(!showPin)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#64748b] hover:text-[#94a3b8]"
+                  aria-label={showPin ? "Ocultar PIN" : "Mostrar PIN"}
+                >
+                  {showPin ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              <p className="text-xs text-[#64748b] mt-2">
+                El PIN administrativo es requerido para operaciones sensibles
+              </p>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex gap-3 pt-4 border-t border-[#334155]">
+              <Button
+                onClick={() => {
+                  setCancelModalOpen(false);
+                  setSelectedTransaction(null);
+                  setAdminPin('');
+                }}
+                variant="secondary"
+                fullWidth
+                className="min-h-[44px]"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmCancel}
+                disabled={adminPin.length !== 4 || cancelling}
+                fullWidth
+                className="min-h-[44px] bg-rose-500 hover:bg-rose-600 border-rose-500 text-white"
+              >
+                {cancelling ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={18} className="mr-2" />
+                    Confirmar Cancelación
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Corte de Caja */}
+      <CorteDeCajaModal 
+        isOpen={corteModalOpen} 
+        onClose={() => setCorteModalOpen(false)} 
+      />
+    </div>
+  );
 };
 
 export default Reports;
