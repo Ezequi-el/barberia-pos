@@ -20,7 +20,8 @@ import {
   RotateCcw,
   Loader2,
   User,
-  X
+  X,
+  ShoppingCart
 } from 'lucide-react';
 import Button from './Button';
 import Modal from './Modal';
@@ -80,6 +81,9 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   // Barberos activos
   const [activeBarbers, setActiveBarbers] = useState<{id: string, nombre: string, numero_silla?: number}[]>([]);
   const [barbersLoading, setBarbersLoading] = useState(false);
+  
+  // Vista móvil: tabs
+  const [viewMode, setViewMode] = useState<'catalog' | 'cart'>('catalog');
   
   // Paginación para lazy loading
   const [currentPage, setCurrentPage] = useState(0);
@@ -533,7 +537,7 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   return (
     <div className="flex flex-col h-screen md:flex-row bg-[#0f172a] overflow-hidden">
       {/* Botón de volver en móvil */}
-      <div className="md:hidden p-3 border-b border-[#334155] bg-[#0f172a]">
+      <div className="md:hidden shrink-0 p-3 border-b border-[#334155] bg-[#0f172a]">
         <button 
           onClick={onBack} 
           className="flex items-center gap-2 text-[#94a3b8] hover:text-[#f8fafc] p-2"
@@ -545,7 +549,32 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       </div>
 
       {/* Panel izquierdo: Catálogo de productos */}
-      <div className="flex-1 flex flex-col border-r border-[#334155]">
+      <div className={`flex-1 flex flex-col min-h-0 border-r border-[#334155] ${viewMode === 'catalog' ? 'flex' : 'hidden md:flex'}`}>
+        {/* TABS MÓVIL */}
+        <div className="md:hidden shrink-0 flex border-b border-[#334155] bg-[#1e293b]">
+          <button
+            onClick={() => setViewMode('catalog')}
+            className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors ${
+              viewMode === 'catalog' ? 'text-[#e2b808] border-b-2 border-[#e2b808]' : 'text-[#94a3b8]'
+            }`}
+          >
+            Servicios / Productos
+          </button>
+          <button
+            onClick={() => setViewMode('cart')}
+            className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${
+              viewMode === 'cart' ? 'text-[#e2b808] border-b-2 border-[#e2b808]' : 'text-[#94a3b8]'
+            }`}
+          >
+            Carrito
+            {cart.length > 0 && (
+              <span className="bg-[#e2b808] text-[#0f172a] text-[10px] px-1.5 py-0.5 rounded-full">
+                {cart.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         <ProductGrid
           items={catalog}
           activeTab={activeTab}
@@ -561,15 +590,57 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
       </div>
 
       {/* Panel derecho: Carrito */}
-      <Cart
-        items={cart}
-        total={cartTotal}
-        onUpdateQuantity={updateQuantity}
-        onRemoveItem={removeFromCart}
-        onClearCart={clearCart}
-        onCheckout={handleCheckoutStart}
-        isLoading={processing}
-      />
+      <div className={`w-full md:w-[400px] flex-col ${viewMode === 'cart' ? 'flex' : 'hidden md:flex'}`}>
+        {/* TAB BACK BUTTON (Para volver al catálogo desde carrito en móvil) */}
+        <div className="md:hidden flex flex-col items-stretch p-3 border-b border-[#334155] bg-[#1e293b] w-full gap-2">
+          <div className="text-center py-1">
+            <span className="text-sm font-bold uppercase tracking-widest text-[#e2b808]">
+               🛒 Orden Actual ({cart.length} items)
+            </span>
+          </div>
+          <button
+            onClick={() => setViewMode('catalog')}
+            className="w-full py-3 px-4 text-sm font-bold uppercase tracking-wider text-[#94a3b8] border border-[#334155] rounded-lg hover:bg-[#334155] transition-colors"
+          >
+            ← Volver al Catálogo
+          </button>
+        </div>
+
+        <Cart
+          items={cart}
+          total={cartTotal}
+          onUpdateQuantity={updateQuantity}
+          onRemoveItem={removeFromCart}
+          onClearCart={clearCart}
+          onCheckout={handleCheckoutStart}
+          isLoading={processing}
+        />
+        
+        {/* Padding bottom para no tapar contenido con el botón fijo */}
+        {cart.length > 0 && <div className="h-32 md:hidden"></div>}
+      </div>
+
+      {/* BOTÓN FIJO BOTTOM - SOLO MÓVIL Y SI HAY ITEMS */}
+      {cart.length > 0 && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-[#1e293b]/95 backdrop-blur-sm border-t border-[#334155] z-50 animate-in slide-in-from-bottom duration-300">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+              <ShoppingCart size={20} className="text-[#e2b808]" />
+              <span className="text-sm font-bold text-[#f8fafc]">{cart.length} items</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xl font-bold text-[#e2b808]">${cartTotal.toFixed(2)}</span>
+            </div>
+          </div>
+          <Button
+            fullWidth
+            onClick={handleCheckoutStart}
+            className="h-14 text-lg font-bold tracking-widest bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] border-[#d4a017] shadow-xl"
+          >
+            COBRAR
+          </Button>
+        </div>
+      )}
 
       {/* MODAL DE CHECKOUT */}
       <Modal

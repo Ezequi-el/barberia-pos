@@ -71,9 +71,9 @@ const ProductGrid: React.FC<ProductGridProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Header con búsqueda - Optimizado para móvil */}
-      <div className="p-3 md:p-4 border-b border-[#334155] bg-[#0f172a]">
+      <div className="shrink-0 p-3 md:p-4 border-b border-[#334155] bg-[#0f172a]">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           {/* Título */}
           <h2 className="text-lg md:text-xl font-heading font-bold text-[#e2b808] uppercase tracking-wider">
@@ -98,7 +98,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({
       </div>
 
       {/* Tabs - Touch targets grandes */}
-      <div className="flex p-2 gap-2 bg-[#1e293b]/50">
+      <div className="shrink-0 flex p-2 gap-2 bg-[#1e293b]/50">
         <button
           onClick={() => onTabChange(ItemType.SERVICE)}
           className={`flex-1 py-3 px-2 text-sm font-bold uppercase tracking-wider rounded-lg transition-all ${TOUCH_TARGET} ${
@@ -133,7 +133,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({
         </div>
       ) : (
         /* Grid de productos */
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 bg-[#0f172a]">
+        <div 
+          className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 bg-[#0f172a] pb-40"
+          style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+        >
           {/* Contador de resultados */}
           <div className="mb-4 flex justify-between items-center">
             <span className="text-sm text-[#94a3b8]">
@@ -161,75 +164,47 @@ const ProductGrid: React.FC<ProductGridProps> = ({
                   onClick={() => !isOutOfStock && onAddToCart(item)}
                   disabled={isOutOfStock}
                   className={`
-                    group flex flex-col p-3 md:p-4 
-                    bg-[#1e293b] border border-[#334155] 
-                    rounded-xl hover:bg-[#334155] 
-                    hover:border-[#e2b808]/50 
-                    transition-all text-left 
-                    relative overflow-hidden
-                    ${TOUCH_TARGET}
+                    relative p-3 bg-[#1e293b] rounded-xl border border-[#334155] 
+                    cursor-pointer min-h-[120px] flex flex-col justify-between
+                    hover:border-[#e2b808]/50 transition-all text-left
                     ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
-                  aria-label={`Agregar ${item.name} al carrito`}
+                  aria-label={`Agregar ${item.name}`}
                 >
-                  {/* Badge de stock bajo */}
-                  {isLowStock && (
-                    <div className="absolute top-2 right-2">
-                      <span className="text-xs px-2 py-1 rounded bg-rose-500/20 text-rose-400">
-                        Stock bajo
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Contenido principal */}
-                  <div className="flex-1 mb-2">
-                    <h3 className="font-bold text-sm md:text-base text-[#f8fafc] group-hover:text-[#e2b808] transition-colors line-clamp-2">
+                  {/* Nombre y marca */}
+                  <div>
+                    <h3 className="font-bold text-sm leading-tight text-[#f8fafc] line-clamp-2">
                       {item.name}
                     </h3>
                     {item.brand && (
-                      <p className="text-xs text-[#64748b] uppercase mt-1">
+                      <p className="text-[10px] text-[#64748b] uppercase mt-0.5">
                         {item.brand}
                       </p>
                     )}
                   </div>
 
-                  {/* Precio y stock */}
-                  <div className="flex justify-between items-center mt-2">
+                  {/* Precio y stock — en la parte inferior, bien separados */}
+                  <div className="flex items-end justify-between mt-2">
                     <div>
-                      <span className="text-lg md:text-xl font-heading font-bold text-[#f8fafc]">
+                      <p className="text-[#e2b808] font-bold text-base md:text-lg">
                         ${item.price.toFixed(2)}
-                      </span>
-                      {item.cost && item.cost > 0 && (
-                        <p className="text-xs text-[#64748b]">
-                          Costo: ${item.cost.toFixed(2)}
-                        </p>
-                      )}
+                      </p>
                     </div>
-
-                    {item.type === ItemType.PRODUCT && (
-                      <div className="text-right">
-                        <span className={`
-                          text-xs px-2 py-1 rounded 
-                          ${isOutOfStock 
-                            ? 'bg-rose-500/20 text-rose-400' 
-                            : 'bg-[#0f172a] text-[#94a3b8]'
-                          }
-                        `}>
-                          Stock: {item.stock || 0}
-                        </span>
-                        {isOutOfStock && (
-                          <p className="text-xs text-rose-400 mt-1">
-                            Agotado
-                          </p>
-                        )}
-                      </div>
+                    {item.type === ItemType.PRODUCT && item.stock !== undefined && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        item.stock <= 5 
+                          ? 'bg-rose-500/20 text-rose-400' 
+                          : 'bg-[#0f172a] text-[#94a3b8]'
+                      }`}>
+                        {item.stock} un.
+                      </span>
                     )}
                   </div>
 
-                  {/* Indicador de tipo */}
-                  <div className="absolute bottom-2 left-2">
-                    <span className="text-[10px] uppercase tracking-wider text-[#64748b]">
-                      {item.type === ItemType.SERVICE ? 'Servicio' : 'Producto'}
+                  {/* Indicador de tipo discreto */}
+                  <div className="absolute top-1 right-2 opacity-30">
+                    <span className="text-[8px] uppercase tracking-tighter text-[#64748b]">
+                      {item.type === ItemType.SERVICE ? 'SVC' : 'PRD'}
                     </span>
                   </div>
                 </button>

@@ -351,7 +351,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="h-screen bg-[#0f172a] flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full overflow-hidden">
+    <div className="min-h-screen md:h-screen bg-[#0f172a] flex flex-col p-4 md:p-6 max-w-7xl mx-auto w-full overflow-y-auto md:overflow-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8">
         <div className="flex items-center gap-3 md:gap-4">
@@ -372,38 +372,37 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-wrap gap-2 md:gap-3">
           {!isBarber && (
             <>
               <Button 
                 onClick={() => setCorteModalOpen(true)}
-                className="gap-2 text-sm md:text-base bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] print:hidden"
+                className="flex-1 sm:flex-initial gap-2 text-xs md:text-base bg-[#e2b808] hover:bg-[#d4a017] text-[#0f172a] print:hidden min-h-[44px]"
               >
-                <Printer size={18} /> Corte de Caja
+                <Printer size={16} className="md:w-[18px]" /> 
+                <span className="hidden xs:inline">Corte</span>
+                <span className="xs:hidden">Corte</span>
               </Button>
               <Button 
                 onClick={exportCSV} 
                 variant="secondary" 
-                className="gap-2 text-sm md:text-base print:hidden"
+                className="flex-1 sm:flex-initial gap-2 text-xs md:text-base print:hidden min-h-[44px] px-2 md:px-4"
+                title="Exportar Excel"
               >
-                <Download size={18} /> Exportar Excel
+                <Download size={16} className="md:w-[18px]" /> 
+                <span className="hidden md:inline">Excel</span>
               </Button>
               <Button 
                 onClick={exportPDF} 
                 variant="secondary" 
-                className="gap-2 text-sm md:text-base print:hidden"
+                className="flex-1 sm:flex-initial gap-2 text-xs md:text-base print:hidden min-h-[44px] px-2 md:px-4"
+                title="Exportar PDF"
               >
-                <Printer size={18} /> Exportar PDF
+                <Printer size={16} className="md:w-[18px]" /> 
+                <span className="hidden md:inline">PDF</span>
               </Button>
             </>
           )}
-          <Button 
-            onClick={loadTransactions} 
-            variant="secondary" 
-            className="gap-2 text-sm md:text-base hidden print:hidden"
-          >
-            <RefreshCw size={18} /> Actualizar
-          </Button>
         </div>
       </div>
 
@@ -477,8 +476,8 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* KPI Cards - Responsivo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
+      {/* KPI Cards - Responsivo: 2x2 en móvil */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
         <div className="bg-[#1e293b] border border-[#334155] p-4 md:p-6 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
@@ -614,71 +613,114 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
                 <p className="text-center">No hay transacciones que coincidan con los filtros</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead className="bg-[#1e293b] text-[#94a3b8] uppercase text-xs font-bold tracking-wider sticky top-0">
-                    <tr>
-                      <th className="p-3 md:p-4">Hora</th>
-                      <th className="p-3 md:p-4">Barbero</th>
-                      <th className="p-3 md:p-4">Detalle</th>
-                      <th className="p-3 md:p-4">Pago</th>
-                      <th className="p-3 md:p-4 text-right">Total</th>
-                      <th className="p-3 md:p-4 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#334155] text-sm">
-                    {[...filteredTransactions].reverse().map(t => (
-                      <tr key={t.id} className="hover:bg-[#334155]/30">
-                        <td className="p-3 md:p-4 text-[#94a3b8]">
-                          {new Date(t.date).toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                          <div className="text-xs text-[#64748b]">
-                            {new Date(t.date).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="p-3 md:p-4 text-[#f8fafc] font-medium">
-                          {t.barber}
-                        </td>
-                        <td className="p-3 md:p-4 text-[#94a3b8] max-w-xs">
-                          <div className="truncate" title={t.items.map(i => i.name).join(', ')}>
+              <>
+                {/* Mobile View: Cards (Visible en < 640px) */}
+                <div className="md:hidden divide-y divide-[#334155]">
+                  {[...filteredTransactions].reverse().map(t => (
+                    <div key={t.id} className="p-4 active:bg-[#334155]/20">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="text-[#f8fafc] font-bold text-sm">
+                            {new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t.barber}
+                          </p>
+                          <p className="text-xs text-[#94a3b8] mt-0.5">
                             {t.items.map(i => i.name).join(', ')}
-                          </div>
-                          <div className="text-xs text-[#64748b] mt-1">
-                            {t.items.length} items
-                          </div>
-                        </td>
-                        <td className="p-3 md:p-4">
-                          <span className="bg-[#334155] text-[#f8fafc] px-2 py-1 rounded text-xs font-bold uppercase inline-block">
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleCancelTransaction(t)}
+                          className={`p-2 text-[#64748b] hover:text-rose-500 transition-colors ${TOUCH_TARGET}`}
+                          aria-label="Cancelar transacción"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-[#334155] text-[#f8fafc] px-2 py-0.5 rounded-[4px] text-[10px] font-bold uppercase">
                             {t.paymentMethod}
                           </span>
                           {t.reference && (
-                            <div className="text-xs text-[#64748b] mt-1 truncate max-w-[120px]">
-                              Ref: {t.reference}
-                            </div>
+                            <span className="text-[10px] text-[#64748b] truncate max-w-[80px]">
+                              #{t.reference}
+                            </span>
                           )}
-                        </td>
-                        <td className="p-3 md:p-4 text-right">
-                          <span className="font-bold text-[#e2b808] text-lg">
-                            ${t.total.toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="p-3 md:p-4 text-center">
-                          <button
-                            onClick={() => handleCancelTransaction(t)}
-                            className={`p-2 text-[#64748b] hover:text-rose-500 transition-colors ${TOUCH_TARGET}`}
-                            aria-label="Cancelar transacción"
-                            title="Cancelar transacción (requiere PIN)"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
+                        </div>
+                        <span className="font-bold text-[#e2b808] text-base">
+                          ${t.total.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop View: Table (Visible en >= 640px) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead className="bg-[#1e293b] text-[#94a3b8] uppercase text-xs font-bold tracking-wider sticky top-0">
+                      <tr>
+                        <th className="p-3 md:p-4">Hora</th>
+                        <th className="p-3 md:p-4">Barbero</th>
+                        <th className="p-3 md:p-4">Detalle</th>
+                        <th className="p-3 md:p-4">Pago</th>
+                        <th className="p-3 md:p-4 text-right">Total</th>
+                        <th className="p-3 md:p-4 text-center">Acciones</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-[#334155] text-sm">
+                      {[...filteredTransactions].reverse().map(t => (
+                        <tr key={t.id} className="hover:bg-[#334155]/30">
+                          <td className="p-3 md:p-4 text-[#94a3b8]">
+                            {new Date(t.date).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                            <div className="text-xs text-[#64748b]">
+                              {new Date(t.date).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4 text-[#f8fafc] font-medium">
+                            {t.barber}
+                          </td>
+                          <td className="p-3 md:p-4 text-[#94a3b8] max-w-xs">
+                            <div className="truncate" title={t.items.map(i => i.name).join(', ')}>
+                              {t.items.map(i => i.name).join(', ')}
+                            </div>
+                            <div className="text-xs text-[#64748b] mt-1">
+                              {t.items.length} items
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <span className="bg-[#334155] text-[#f8fafc] px-2 py-1 rounded text-xs font-bold uppercase inline-block">
+                              {t.paymentMethod}
+                            </span>
+                            {t.reference && (
+                              <div className="text-xs text-[#64748b] mt-1 truncate max-w-[120px]">
+                                Ref: {t.reference}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 md:p-4 text-right">
+                            <span className="font-bold text-[#e2b808] text-lg">
+                              ${t.total.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3 md:p-4 text-center">
+                            <button
+                              onClick={() => handleCancelTransaction(t)}
+                              className={`p-2 text-[#64748b] hover:text-rose-500 transition-colors ${TOUCH_TARGET}`}
+                              aria-label="Cancelar transacción"
+                              title="Cancelar transacción (requiere PIN)"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
           
