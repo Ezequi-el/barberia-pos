@@ -144,19 +144,31 @@ serve(async (req) => {
 
     let userId = "";
 
-    // 1. Opcionalmente crear el usuario en Supabase Auth
     if (create_user) {
-      if (!business_id) throw new Error("business_id es requerido para crear un barbero");
+  if (!business_id) throw new Error("business_id es requerido para crear un barbero");
 
-      const { data: userData, error: userError } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: nombre }
-      });
+  // Si ya existe un usuario con ese email, eliminarlo primero
+  const { data: existingUsers } = await supabase.auth.admin.listUsers();
+  const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
+  
+ if (existingUser) {
+  // Primero eliminar de tablas dependientes
+  await supabase.from('barberos').delete().eq('user_id', existingUser.id);
+  await supabase.from('profiles').delete().eq('id', existingUser.id);
+  
+  // Luego eliminar de Auth
+  const { error: deleteError } = await supabase.auth.admin.deleteUser(existingUser.id);
+  if (deleteError) throw new Error(`Error eliminando usuario anterior: ${deleteError.message}`);
+}
+  const { data: userData, error: userError } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: nombre }
+  });
 
-      if (userError) throw userError;
-      userId = userData.user.id;
+  if (userError) throw userError;
+  userId = userData.user.id;
 
       // 2. Crear su perfil automáticamente
       const { error: profileError } = await supabase
