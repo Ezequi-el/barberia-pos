@@ -421,7 +421,7 @@ export const deleteCatalogItem = async (id: string): Promise<void> => {
 /**
  * Obtiene todas las transacciones
  */
-export const getTransactions = async (limit: number = 100, userId?: string): Promise<Transaction[]> => {
+export const getTransactions = async (limit: number = 100, barberName?: string): Promise<Transaction[]> => {
   try {
     if (isDemoMode) {
       console.log('[DEMO] Obteniendo transacciones');
@@ -434,9 +434,9 @@ export const getTransactions = async (limit: number = 100, userId?: string): Pro
           paymentMethod: PaymentMethod.CASH,
           reference: 'REF-001',
           items: [
-            { id: '1', name: 'Corte Clásico', type: ItemType.SERVICE, price: 250, quantity: 1, subtotal: 250 },
-            { id: '4', name: 'Gel Fijador', type: ItemType.PRODUCT, price: 120, quantity: 1, subtotal: 120 },
-            { id: '5', name: 'Cera Modeladora', type: ItemType.PRODUCT, price: 150, quantity: 1, subtotal: 150 }
+            { id: '1', name: 'Corte Clásico', type: ItemType.SERVICE, price: 250, quantity: 1, subtotal: 250 } as any,
+            { id: '4', name: 'Gel Fijador', type: ItemType.PRODUCT, price: 120, quantity: 1, subtotal: 120 } as any,
+            { id: '5', name: 'Cera Modeladora', type: ItemType.PRODUCT, price: 150, quantity: 1, subtotal: 150 } as any
           ]
         },
         {
@@ -447,7 +447,7 @@ export const getTransactions = async (limit: number = 100, userId?: string): Pro
           paymentMethod: PaymentMethod.CARD,
           reference: 'REF-002',
           items: [
-            { id: '2', name: 'Afeitado Tradicional', type: ItemType.SERVICE, price: 180, quantity: 1, subtotal: 180 }
+            { id: '2', name: 'Afeitado Tradicional', type: ItemType.SERVICE, price: 180, quantity: 1, subtotal: 180 } as any
           ]
         }
       ];
@@ -473,8 +473,9 @@ export const getTransactions = async (limit: number = 100, userId?: string): Pro
       .order('created_at', { ascending: false })
       .limit(limit);
       
-    if (userId) {
-      query = query.eq('user_id', userId);
+    // Filtrar por nombre de barbero (para vista de barbero individual)
+    if (barberName) {
+      query = query.eq('barber', barberName);
     }
 
     const { data: pedidos, error: pedidosError } = await query;
@@ -605,25 +606,41 @@ export const createTransaction = async (
       }
 
       // Deducción de stock (Solo productos)
-      if (item.type === 'PRODUCT' && item.quantity > 0) {
+      if (item.type === ItemType.PRODUCT && item.quantity > 0) {
         try {
-          // Obtener stock actual
-          const { data: prodData } = await supabase
-            .from('catalogo')
-            .select('stock')
+          console.log(`[STOCK] Intentando deducir stock: item="${item.name}" id="${item.id}" type="${item.type}" qty=${item.quantity}`);
+          
+          // Obtener stock actual de la tabla productos
+          const { data: prodData, error: fetchError } = await supabase
+            .from('productos')
+            .select('id, stock')
             .eq('id', item.id)
             .single();
+          
+          console.log(`[STOCK] Fetch result:`, { prodData, fetchError });
             
-          if (prodData && prodData.stock) {
+          if (fetchError) {
+            console.error(`[STOCK] Error al leer stock de [${item.name}]:`, fetchError);
+          } else if (prodData && prodData.stock !== null && prodData.stock !== undefined) {
             const newStock = Math.max(0, prodData.stock - item.quantity);
-            await supabase
-              .from('catalogo')
+            console.log(`[STOCK] Actualizando: ${prodData.stock} → ${newStock}`);
+            const { error: updateError } = await supabase
+              .from('productos')
               .update({ stock: newStock })
               .eq('id', item.id);
+            if (updateError) {
+              console.error(`[STOCK] Error al actualizar stock de [${item.name}]:`, updateError);
+            } else {
+              console.log(`[STOCK] Stock actualizado exitosamente para [${item.name}]`);
+            }
+          } else {
+            console.warn(`[STOCK] No se encontró el producto o stock es null:`, { prodData, itemId: item.id });
           }
         } catch (stockError) {
-          console.error(`Error deduciendo stock para [${item.name}]:`, stockError);
+          console.error(`[STOCK] Excepción deduciendo stock para [${item.name}]:`, stockError);
         }
+      } else {
+        console.log(`[STOCK] Omitiendo deducción: type="${item.type}" (esperado: "${ItemType.PRODUCT}") qty=${item.quantity}`);
       }
     }
 

@@ -68,7 +68,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const data = await getTransactions(100, isBarber ? user?.id : undefined);
+      const data = await getTransactions(100, isBarber ? (profile?.full_name ?? undefined) : undefined);
       setTransactions(data);
     } catch (error: any) {
       console.error('Error loading transactions:', error);
@@ -133,11 +133,19 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
       totalTransactions,
       todaySales,
       chartData,
-      topPaymentMethod,
-      barbers: Array.from(new Set(filteredTransactions.map(t => t.barber))),
-      paymentMethods: Array.from(new Set(filteredTransactions.map(t => t.paymentMethod)))
+      topPaymentMethod
     };
   }, [filteredTransactions]);
+
+  // Valores para filtros: siempre basados en TODAS las transacciones, no en las filtradas
+  const filterOptions = useMemo(() => ({
+    barbers: Array.from(new Set(transactions.map(t => t.barber))).filter(Boolean),
+    paymentMethods: [
+      { value: PaymentMethod.CASH, label: 'Efectivo' },
+      { value: PaymentMethod.CARD, label: 'Tarjeta' },
+      { value: PaymentMethod.TRANSFER, label: 'Transferencia' },
+    ]
+  }), [transactions]);
 
   // Exportar a CSV de forma amena para Excel (Español)
   const exportCSV = () => {
@@ -442,7 +450,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
                 className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
               >
                 <option value="">Todos los barberos</option>
-                {stats.barbers.map(barber => (
+                {filterOptions.barbers.map(barber => (
                   <option key={barber} value={barber}>{barber}</option>
                 ))}
               </select>
@@ -458,8 +466,8 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
               className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm text-[#f8fafc] focus:border-[#e2b808] focus:outline-none"
             >
               <option value="">Todos los métodos</option>
-              {stats.paymentMethods.map(method => (
-                <option key={method} value={method}>{method}</option>
+              {filterOptions.paymentMethods.map(method => (
+                <option key={method.value} value={method.value}>{method.label}</option>
               ))}
             </select>
           </div>

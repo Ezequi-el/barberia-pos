@@ -97,12 +97,10 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
   // ============================================================================
   // 2. EFECTOS Y CARGA DE DATOS
   // ============================================================================
-  
   useEffect(() => {
     loadCatalog();
     loadCatalogCount();
   }, []);
-
 
   // Cerrar dropdown al click fuera
   useEffect(() => {
@@ -572,6 +570,18 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
                 {cart.length}
               </span>
             )}
+          </button>
+        </div>
+
+        {/* Botón de volver al dashboard - solo desktop */}
+        <div className="hidden md:flex shrink-0 items-center px-4 py-2 border-b border-[#334155] bg-[#0f172a]">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-[#94a3b8] hover:text-[#f8fafc] transition-colors py-1 px-2 rounded-md hover:bg-[#1e293b]"
+            aria-label="Volver al dashboard"
+          >
+            <ChevronLeft size={18} />
+            <span className="text-sm font-medium">Dashboard</span>
           </button>
         </div>
 

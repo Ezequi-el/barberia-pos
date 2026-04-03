@@ -50,25 +50,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({
     gap-3 md:gap-4
   `;
 
-  // Empty state
-  if (!isLoading && filteredItems.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-20 h-20 bg-[#334155] rounded-full flex items-center justify-center mb-4">
-          <span className="text-3xl">📦</span>
-        </div>
-        <h3 className="text-xl font-bold text-[#f8fafc] mb-2">
-          {searchQuery ? 'No se encontraron resultados' : 'Catálogo vacío'}
-        </h3>
-        <p className="text-[#94a3b8] max-w-md">
-          {searchQuery 
-            ? `No hay productos que coincidan con "${searchQuery}"`
-            : 'Agrega productos o servicios para comenzar a vender'
-          }
-        </p>
-      </div>
-    );
-  }
+  // Empty-state inline: no reemplaza el layout para que los tabs sigan visibles
+  const showEmptyState = !isLoading && filteredItems.length === 0;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -137,80 +120,102 @@ const ProductGrid: React.FC<ProductGridProps> = ({
           className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 bg-[#0f172a] pb-40"
           style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
         >
-          {/* Contador de resultados */}
-          <div className="mb-4 flex justify-between items-center">
-            <span className="text-sm text-[#94a3b8]">
-              {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} encontrados
-            </span>
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="text-xs text-[#e2b808] hover:text-[#d4a017]"
-              >
-                Limpiar búsqueda
-              </button>
-            )}
-          </div>
+          {showEmptyState ? (
+            /* Empty state inline — las tabs siguen visibles */
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-20 h-20 bg-[#334155] rounded-full flex items-center justify-center mb-4">
+                <span className="text-3xl">📦</span>
+              </div>
+              <h3 className="text-xl font-bold text-[#f8fafc] mb-2">
+                {searchQuery ? 'Sin resultados' : 'Sin ítems en esta categoría'}
+              </h3>
+              <p className="text-[#94a3b8] max-w-sm text-sm">
+                {searchQuery
+                  ? `No hay coincidencias para "${searchQuery}"`
+                  : activeTab === 'SERVICE'
+                    ? 'No hay servicios. Agrégalos desde Gestión del Catálogo.'
+                    : 'No hay productos. Agrégalos desde Gestión del Catálogo.'
+                }
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Contador de resultados */}
+              <div className="mb-4 flex justify-between items-center">
+                <span className="text-sm text-[#94a3b8]">
+                  {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} encontrados
+                </span>
+                {searchQuery && (
+                  <button
+                    onClick={() => onSearchChange('')}
+                    className="text-xs text-[#e2b808] hover:text-[#d4a017]"
+                  >
+                    Limpiar búsqueda
+                  </button>
+                )}
+              </div>
 
-          {/* Grid responsivo */}
-          <div className={gridClasses}>
-            {filteredItems.map(item => {
-              const isOutOfStock = item.type === ItemType.PRODUCT && (item.stock || 0) <= 0;
-              const isLowStock = item.type === ItemType.PRODUCT && (item.stock || 0) > 0 && (item.stock || 0) < 5;
+              {/* Grid responsivo */}
+              <div className={gridClasses}>
+                {filteredItems.map(item => {
+                  const isOutOfStock = item.type === ItemType.PRODUCT && (item.stock || 0) <= 0;
+                  const isLowStock = item.type === ItemType.PRODUCT && (item.stock || 0) > 0 && (item.stock || 0) < 5;
 
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => !isOutOfStock && onAddToCart(item)}
-                  disabled={isOutOfStock}
-                  className={`
-                    relative p-3 bg-[#1e293b] rounded-xl border border-[#334155] 
-                    cursor-pointer min-h-[120px] flex flex-col justify-between
-                    hover:border-[#e2b808]/50 transition-all text-left
-                    ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''}
-                  `}
-                  aria-label={`Agregar ${item.name}`}
-                >
-                  {/* Nombre y marca */}
-                  <div>
-                    <h3 className="font-bold text-sm leading-tight text-[#f8fafc] line-clamp-2">
-                      {item.name}
-                    </h3>
-                    {item.brand && (
-                      <p className="text-[10px] text-[#64748b] uppercase mt-0.5">
-                        {item.brand}
-                      </p>
-                    )}
-                  </div>
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => !isOutOfStock && onAddToCart(item)}
+                      disabled={isOutOfStock}
+                      className={`
+                        relative p-3 bg-[#1e293b] rounded-xl border border-[#334155] 
+                        cursor-pointer min-h-[120px] flex flex-col justify-between
+                        hover:border-[#e2b808]/50 transition-all text-left
+                        ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''}
+                      `}
+                      aria-label={`Agregar ${item.name}`}
+                    >
+                      {/* Nombre y marca */}
+                      <div>
+                        <h3 className="font-bold text-sm leading-tight text-[#f8fafc] line-clamp-2">
+                          {item.name}
+                        </h3>
+                        {item.brand && (
+                          <p className="text-[10px] text-[#64748b] uppercase mt-0.5">
+                            {item.brand}
+                          </p>
+                        )}
+                      </div>
 
-                  {/* Precio y stock — en la parte inferior, bien separados */}
-                  <div className="flex items-end justify-between mt-2">
-                    <div>
-                      <p className="text-[#e2b808] font-bold text-base md:text-lg">
-                        ${item.price.toFixed(2)}
-                      </p>
-                    </div>
-                    {item.type === ItemType.PRODUCT && item.stock !== undefined && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                        item.stock <= 5 
-                          ? 'bg-rose-500/20 text-rose-400' 
-                          : 'bg-[#0f172a] text-[#94a3b8]'
-                      }`}>
-                        {item.stock} un.
-                      </span>
-                    )}
-                  </div>
+                      {/* Precio y stock — en la parte inferior, bien separados */}
+                      <div className="flex items-end justify-between mt-2">
+                        <div>
+                          <p className="text-[#e2b808] font-bold text-base md:text-lg">
+                            ${item.price.toFixed(2)}
+                          </p>
+                        </div>
+                        {item.type === ItemType.PRODUCT && item.stock !== undefined && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                            item.stock <= 5 
+                              ? 'bg-rose-500/20 text-rose-400' 
+                              : 'bg-[#0f172a] text-[#94a3b8]'
+                          }`}>
+                            {item.stock} un.
+                          </span>
+                        )}
+                      </div>
 
-                  {/* Indicador de tipo discreto */}
-                  <div className="absolute top-1 right-2 opacity-30">
-                    <span className="text-[8px] uppercase tracking-tighter text-[#64748b]">
-                      {item.type === ItemType.SERVICE ? 'SVC' : 'PRD'}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                      {/* Indicador de tipo discreto */}
+                      <div className="absolute top-1 right-2 opacity-30">
+                        <span className="text-[8px] uppercase tracking-tighter text-[#64748b]">
+                          {item.type === ItemType.SERVICE ? 'SVC' : 'PRD'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {/* Load More Button */}
           {hasMoreItems && onLoadMore && (
