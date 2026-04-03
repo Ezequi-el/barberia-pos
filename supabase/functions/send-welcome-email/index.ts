@@ -133,7 +133,31 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { nombre, negocio, email, password, business_id, create_user = false } = await req.json();
+    const { nombre, negocio, email, password, business_id, create_user = false, update_password = false, user_id } = await req.json();
+
+    if (update_password) {
+      if (!user_id || !password) {
+        return new Response(
+          JSON.stringify({ error: "Faltan datos para actualizar contraseña (user_id o password missing)" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { data, error } = await supabase.auth.admin.updateUserById(user_id, { password });
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: `Auth Error: ${error.message}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Update password_changed flag in profiles to force change on next login if needed
+      await supabase.from('profiles').update({ password_changed: false }).eq('id', user_id);
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Contraseña actualizada" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!nombre || (!negocio && !create_user) || !email || !password) {
       return new Response(
@@ -240,8 +264,8 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in Edge Function:", error.message);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: `Internal Error: ${error.message}` }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

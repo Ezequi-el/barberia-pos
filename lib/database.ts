@@ -1249,9 +1249,44 @@ export const updateBarberoCompleto = async (
       await supabase.from('profiles').update({ activo }).eq('id', barbero.user_id);
     }
     
-    // 3. Cambiar contraseña: sin service_role key en el front, no se puede alterar la contraseña de otro
+    // 3. Cambiar contraseña: a través de la Edge Function utilizando service_role
     if (newPassword) {
-      console.warn("Cambio de contraseña desde el admin no soportado sin service_role temporalmente. El barbero debe iniciar sesión para usar updateUser o debe configurar un backend/Edge Function.");
+      if (!barbero?.user_id) {
+        throw new Error("No se puede cambiar la contraseña: Este barbero no está enlazado a un usuario de acceso (Falta user_id).");
+      }
+      
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const rawRes = await fetch(functionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${anonKey}`
+        },
+        body: JSON.stringify({
+          update_password: true,
+          user_id: barbero.user_id,
+          password: newPassword
+        })
+      });
+
+      const responseText = await rawRes.text();
+
+      if (!rawRes.ok) {
+        throw new Error(`Error HTTP ${rawRes.status} de la Edge Function. Respuesta servidor: ${responseText}`);
+      }
+
+      let functionData;
+      try {
+        functionData = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Error al leer JSON de Edge Function: ${responseText}`);
+      }
+      
+      if (functionData?.error) {
+        throw new Error(`Edge Function devolvió este error interno: ${functionData.error}`);
+      }
     }
   }
 };
