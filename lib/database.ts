@@ -1174,7 +1174,7 @@ export const createBarbero = async (
   const { data: functionData, error: functionError } = await supabase.functions.invoke('send-welcome-email', {
     body: {
       nombre: barbero.nombre,
-      negocio: 'Velo POS',
+      negocio: 'Atheris-SaaS',
       email: barbero.email,
       password: barbero.password,
       business_id: business_id,

@@ -441,7 +441,7 @@ const POS: React.FC<POSProps> = ({ onBack }) => {
     // Modo OFFLINE: guardar en localStorage
     if (!navigator.onLine) {
       try {
-        const PENDING_KEY = 'velo_pending_sales';
+        const PENDING_KEY = 'atheris_pending_sales';
         const existing = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
         existing.push({ ...saleData, _savedAt: new Date().toISOString() });
         localStorage.setItem(PENDING_KEY, JSON.stringify(existing));

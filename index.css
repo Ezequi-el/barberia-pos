@@ -1,4 +1,4 @@
-/* Velo POS - Midnight Gold Theme */
+/* Atheris-SaaS - Midnight Gold Theme */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Oswald:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
 
@@ -34,7 +34,7 @@
 
 /* Sidebar recibe color especial */
 .light-mode aside.bg-\[\#1e293b\],
-.light-mode .velo-sidebar { background-color: #1A1A2E !important; }
+.light-mode .atheris-sidebar { background-color: #1A1A2E !important; }
 
 /* Bordes */
 .light-mode .border-\[\#334155\] { border-color: #E5E0D8 !important; }

@@ -43,12 +43,12 @@ const LoginScreen: React.FC<LoginScreenProps> = () => {
         
         {/* Logo Text */}
         <div className="space-y-0 text-center mb-14 flex flex-col items-center">
-          <h1 className="text-7xl font-heading font-extrabold text-[#f8fafc] tracking-widest uppercase">
-            VELO
+          <h1 className="text-5xl font-heading font-extrabold text-[#f8fafc] tracking-widest uppercase">
+            ATHERIS
           </h1>
           <div className="w-16 h-[2px] bg-[#e2b808] my-3"></div>
           <p className="text-xl text-[#e2b808] font-heading tracking-[0.5em] uppercase font-light">
-            POS
+            SAAS
           </p>
         </div>
 
@@ -70,7 +70,7 @@ const LoginScreen: React.FC<LoginScreenProps> = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full bg-zinc-900/40 border border-zinc-800 rounded-lg px-5 py-4 text-white placeholder-zinc-700 focus:border-[#e2b808] focus:ring-1 focus:ring-[#e2b808]/50 focus:outline-none transition-all"
-              placeholder="admin@velopos.com"
+              placeholder="admin@atherissaas.com"
             />
           </div>
 
@@ -110,7 +110,7 @@ const LoginScreen: React.FC<LoginScreenProps> = () => {
         </form>
 
         <p className="mt-14 text-zinc-600/80 text-xs font-medium tracking-widest uppercase">
-          © 2026 Velo POS
+          © 2026 Atheris-SaaS
         </p>
       </div>
     </div>

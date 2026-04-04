@@ -32,7 +32,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-const PENDING_KEY = 'velo_pending_sales';
+const PENDING_KEY = 'atheris_pending_sales';
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onLogout }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -225,14 +225,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onLogout }) => {
     <div className="min-h-screen bg-[#0f172a] text-[#f8fafc] flex">
       {/* Sidebar para desktop */}
       {sidebarOpen && (
-        <div className="velo-sidebar hidden md:flex flex-col w-64 bg-[#1e293b] border-r border-[#334155]">
+        <div className="atheris-sidebar hidden md:flex flex-col w-64 bg-[#1e293b] border-r border-[#334155]">
           <div className="p-6 border-b border-[#334155]">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-[#e2b808] to-[#d4a017] rounded-lg flex items-center justify-center">
                 <span className="text-lg font-bold text-[#0f172a] font-montserrat">A</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold text-[#e2b808] font-montserrat">Velo POS</h1>
+                <h1 className="text-xl font-bold text-[#e2b808] font-montserrat">Atheris-SaaS</h1>
                 <p className="text-xs text-[#94a3b8] truncate">
                   {user?.email ? user.email.split('@')[0] : 'Usuario'}
                 </p>
@@ -294,7 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onLogout }) => {
               <div className="w-8 h-8 bg-gradient-to-br from-[#e2b808] to-[#d4a017] rounded-lg flex items-center justify-center">
                 <span className="text-sm font-bold text-[#0f172a] font-montserrat">A</span>
               </div>
-              <span className="font-bold text-[#e2b808] font-montserrat">Velo POS</span>
+              <span className="font-bold text-[#e2b808] font-montserrat">Atheris-SaaS</span>
             </div>
             <ThemeToggle />
           </div>
@@ -364,7 +364,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onLogout }) => {
             <div className="flex justify-between items-start mb-8">
               <div>
                 <h1 className="text-3xl md:text-4xl font-bold text-[#e2b808] mb-3">
-                  Bienvenido a Velo POS
+                  Bienvenido a Atheris-SaaS
                 </h1>
                 <p className="text-[#94a3b8] text-lg">
                   Sistema de gestión para barberías de lujo

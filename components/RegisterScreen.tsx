@@ -76,8 +76,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onToggleLogin }) => {
         </div>
         
         <div className="space-y-2 mb-8">
-          <h1 className="text-5xl font-heading font-bold text-white tracking-tighter">
-            VELO POS
+          <h1 className="text-4xl font-heading font-bold text-white tracking-tighter">
+            Atheris-SaaS
           </h1>
           <p className="text-lg text-amber-500 font-heading tracking-[0.3em] uppercase">
             Crear Cuenta

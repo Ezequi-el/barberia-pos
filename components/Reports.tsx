@@ -189,7 +189,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `barberia_reporte_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `atheris_saas_reporte_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -207,14 +207,14 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
     try {
       const doc = new jsPDF();
       
-      // Header Banner (Estilo Premium Velo POS)
+      // Header Banner (Estilo Premium Atheris-SaaS)
       doc.setFillColor(15, 23, 42); // bg-[#0f172a]
       doc.rect(0, 0, 210, 24, 'F');
       
       doc.setTextColor(226, 184, 8); // text-[#e2b808]
       doc.setFontSize(22);
       doc.setFont("helvetica", "bold");
-      doc.text('VELO POS', 14, 16);
+      doc.text('ATHERIS-SAAS', 14, 16);
       
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(10);
@@ -286,7 +286,7 @@ const Reports: React.FC<ReportsProps> = ({ onBack }) => {
         }
       });
 
-      doc.save(`velo_pos_reporte_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`atheris_saas_reporte_${new Date().toISOString().split('T')[0]}.pdf`);
       showSuccess('PDF generado exitosamente', 'Exportación completa');
     } catch (error) {
       console.error('Error exporting PDF:', error);

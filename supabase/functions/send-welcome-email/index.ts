@@ -37,10 +37,10 @@ function buildEmailHTML(nombre: string, negocio: string, email: string, password
             <table cellpadding="0" cellspacing="0">
               <tr>
                 <td style="width:36px;height:36px;background:#ffffff;border-radius:8px;text-align:center;vertical-align:middle;">
-                  <span style="font-size:16px;font-weight:bold;color:#111111;">V</span>
+                  <span style="font-size:16px;font-weight:bold;color:#111111;">A</span>
                 </td>
                 <td style="padding-left:12px;">
-                  <span style="font-size:16px;font-weight:bold;color:#ffffff;letter-spacing:1px;">VELO POS</span>
+                  <span style="font-size:16px;font-weight:bold;color:#ffffff;letter-spacing:1px;">ATHERIS-SAAS</span>
                 </td>
               </tr>
             </table>
@@ -109,7 +109,7 @@ function buildEmailHTML(nombre: string, negocio: string, email: string, password
           <td style="background:#141414;padding:20px 32px;border-top:1px solid #2a2a2a;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td><span style="font-size:11px;color:#555;letter-spacing:0.5px;">VELO POS — Sistema de barbería</span></td>
+                <td><span style="font-size:11px;color:#555;letter-spacing:0.5px;">ATHERIS-SAAS — Sistema de gestión empresarial</span></td>
                 <td align="right"><span style="font-size:11px;color:#444;">2025</span></td>
               </tr>
             </table>
@@ -211,13 +211,13 @@ serve(async (req) => {
 
     // 3. Enviar correo usando Gmail API
     const accessToken = await getAccessToken();
-    const htmlContent = buildEmailHTML(nombre, negocio || 'Velo POS', email, password);
+    const htmlContent = buildEmailHTML(nombre, negocio || 'Atheris-SaaS', email, password);
     const fromEmail = Deno.env.get("GMAIL_FROM")!;
 
     const emailLines = [
-      `From: VELO POS <${fromEmail}>`,
+      `From: ATHERIS-SAAS <${fromEmail}>`,
       `To: ${email}`,
-      `Subject: Bienvenido a VELO POS - Tus credenciales de acceso`,
+      `Subject: Bienvenido a ATHERIS-SAAS - Tus credenciales de acceso`,
       `MIME-Version: 1.0`,
       `Content-Type: text/html; charset=UTF-8`,
       ``,

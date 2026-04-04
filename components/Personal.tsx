@@ -39,7 +39,7 @@ const getInitials = (name: string) => {
 
 function generarPasswordTemporal(): string {
   const num = Math.floor(1000 + Math.random() * 9000);
-  return `Velo#${num}`;
+  return `Atheris#${num}`;
 }
 
 const Personal: React.FC<PersonalProps> = ({ onBack }) => {
@@ -60,7 +60,7 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
   } | null>(null);
 
   // localStorage key para barberos pendientes de confirmación
-  const PENDING_CONFIRM_KEY = 'velo_pending_email_confirm';
+  const PENDING_CONFIRM_KEY = 'atheris_pending_email_confirm';
   const [pendingConfirmIds, setPendingConfirmIds] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(PENDING_CONFIRM_KEY) || '[]'); } catch { return []; }
   });
@@ -359,7 +359,7 @@ const Personal: React.FC<PersonalProps> = ({ onBack }) => {
             type="email"
             value={newBarbero.email}
             onChange={e => setNewBarbero({ ...newBarbero, email: e.target.value })}
-            placeholder="barbero@velopos.com"
+            placeholder="barbero@atherissaas.com"
           />
           <div className="grid grid-cols-2 gap-4">
             <Input

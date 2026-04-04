@@ -1,4 +1,4 @@
-# NERON POS - Modo Demo Local 🎭
+# ATHERIS-SAAS - Modo Demo Local 🎭
 
 Este POS ahora funciona en **dos modos**:
 
@@ -107,16 +107,16 @@ Los datos se almacenan en `localStorage` con las siguientes keys:
 
 ```javascript
 {
-  "neron_catalog": [...],      // Productos y servicios
-  "neron_transactions": [...], // Historial de ventas
-  "neron_seeded": true         // Flag de inicialización
+  "atheris_catalog": [...],      // Productos y servicios
+  "atheris_transactions": [...], // Historial de ventas
+  "atheris_seeded": true         // Flag de inicialización
 }
 ```
 
 Para **resetear los datos** en modo demo:
 1. Abre DevTools (F12)
 2. Ve a: Application → Local Storage → http://localhost:XXXX
-3. Elimina las keys `neron_*`
+3. Elimina las keys `atheris_*`
 4. Recarga la página
 
 ---

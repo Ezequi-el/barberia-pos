@@ -21,8 +21,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onEnter }) => {
         </div>
         
         <div className="space-y-2">
-          <h1 className="text-6xl md:text-8xl font-heading font-bold text-white tracking-tighter">
-            VELO POS
+          <h1 className="text-5xl md:text-7xl font-heading font-bold text-white tracking-tighter">
+            Atheris-SaaS
           </h1>
           <p className="text-xl text-amber-500 font-heading tracking-[0.5em] uppercase">
             Barbershop POS

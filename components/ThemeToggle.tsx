@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Moon, Sun } from 'lucide-react';
 
-const THEME_KEY = 'velo_theme';
+const THEME_KEY = 'atheris_theme';
 
 export function applyTheme(theme: 'dark' | 'light') {
   if (theme === 'light') {

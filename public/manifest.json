@@ -1,7 +1,7 @@
 {
-  "name": "Velo POS",
-  "short_name": "Velo POS",
-  "description": "Sistema de gestión para barberías",
+  "name": "Atheris-SaaS",
+  "short_name": "Atheris-SaaS",
+  "description": "Sistema de gestión Premium para Barberías",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0A0F",
