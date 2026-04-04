@@ -8,8 +8,6 @@
   "theme_color": "#B8860B",
   "orientation": "portrait",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
-
+    { "src": "/atheris_saas_icon_512_1775283204361.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
